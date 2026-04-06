@@ -31,26 +31,17 @@ export function computeNewState(
     targetState = "clean";
   }
 
-  // Hysteresis logic: require N-of-3 consecutive polls above/below thresholds
+  // Hysteresis: consecutivePollsAboveThreshold counts polls with articleCount >= STRESSED_THRESHOLD.
+  // consecutivePollsBelowClean counts polls with articleCount < STRESSED_THRESHOLD.
+  // Require N-of-3 consecutive polls before transitioning in either direction.
   let newState = currentState;
 
-  if (targetState === "disrupted") {
+  if (targetState === "disrupted" || targetState === "stressed") {
     consecutivePollsAboveThreshold += 1;
     consecutivePollsBelowClean = 0;
     if (consecutivePollsAboveThreshold >= HYSTERESIS_COUNT) {
-      newState = "disrupted";
-    }
-  } else if (targetState === "stressed") {
-    consecutivePollsAboveThreshold = Math.max(consecutivePollsAboveThreshold - 1, 0);
-    consecutivePollsBelowClean = 0;
-    // Transition to stressed from disrupted requires 3 polls
-    if (currentState === "disrupted") {
-      consecutivePollsAboveThreshold = 0; // reset so it can settle at stressed
-      if (consecutivePollsAboveThreshold >= HYSTERESIS_COUNT) {
-        newState = "stressed";
-      }
-    } else if (consecutivePollsAboveThreshold >= HYSTERESIS_COUNT || currentState === "clean") {
-      newState = "stressed";
+      // Use the most recent article count to distinguish disrupted vs stressed
+      newState = targetState;
     }
   } else {
     // targetState === "clean"
