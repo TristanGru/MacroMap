@@ -20,7 +20,10 @@ const PRIVATE_IP_PATTERNS = [
   /^0\./,                           // non-routable
 ];
 
+const BLOCKED_HOSTNAMES = ["localhost", "0.0.0.0", "metadata.google.internal"];
+
 function isPrivateIp(hostname: string): boolean {
+  if (BLOCKED_HOSTNAMES.includes(hostname.toLowerCase())) return true;
   return PRIVATE_IP_PATTERNS.some((p) => p.test(hostname));
 }
 
