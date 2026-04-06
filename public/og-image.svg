@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#000000"/>
+  <text x="600" y="260" text-anchor="middle" font-family="monospace" font-size="72" font-weight="bold" fill="#ffffff">Macro Map</text>
+  <text x="600" y="340" text-anchor="middle" font-family="monospace" font-size="32" fill="#9ca3af">Live Global Resource Flows</text>
+  <rect x="400" y="380" width="400" height="4" rx="2" fill="#00d4ff"/>
+</svg>

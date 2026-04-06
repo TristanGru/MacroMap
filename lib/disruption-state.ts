@@ -1,0 +1,170 @@
+import type { ChokepointState, DisruptionState, DisruptionStateCache } from "@/lib/types";
+import { kvGet, kvSet, kvDel, KV_KEYS } from "@/lib/kv";
+import { emptyCache } from "@/lib/types";
+
+const DISRUPTION_THRESHOLD = parseInt(
+  process.env.DISRUPTION_THRESHOLD ?? "10",
+  10
+);
+const STRESSED_THRESHOLD = 3;
+const HYSTERESIS_COUNT = 3; // N-of-3 consecutive polls required to change state
+
+/**
+ * Compute new state based on article count + current hysteresis counters.
+ * Returns updated ChokepointState (does not write to KV).
+ */
+export function computeNewState(
+  current: ChokepointState,
+  articleCount: number,
+  articles: import("@/lib/types").NewsArticle[]
+): ChokepointState {
+  const currentState = current.state;
+  let { consecutivePollsAboveThreshold, consecutivePollsBelowClean } = current;
+
+  // Determine target state based on article count
+  let targetState: DisruptionState;
+  if (articleCount >= DISRUPTION_THRESHOLD) {
+    targetState = "disrupted";
+  } else if (articleCount >= STRESSED_THRESHOLD) {
+    targetState = "stressed";
+  } else {
+    targetState = "clean";
+  }
+
+  // Hysteresis logic: require N-of-3 consecutive polls above/below thresholds
+  let newState = currentState;
+
+  if (targetState === "disrupted") {
+    consecutivePollsAboveThreshold += 1;
+    consecutivePollsBelowClean = 0;
+    if (consecutivePollsAboveThreshold >= HYSTERESIS_COUNT) {
+      newState = "disrupted";
+    }
+  } else if (targetState === "stressed") {
+    consecutivePollsAboveThreshold = Math.max(consecutivePollsAboveThreshold - 1, 0);
+    consecutivePollsBelowClean = 0;
+    // Transition to stressed from disrupted requires 3 polls
+    if (currentState === "disrupted") {
+      consecutivePollsAboveThreshold = 0; // reset so it can settle at stressed
+      if (consecutivePollsAboveThreshold >= HYSTERESIS_COUNT) {
+        newState = "stressed";
+      }
+    } else if (consecutivePollsAboveThreshold >= HYSTERESIS_COUNT || currentState === "clean") {
+      newState = "stressed";
+    }
+  } else {
+    // targetState === "clean"
+    consecutivePollsAboveThreshold = 0;
+    consecutivePollsBelowClean += 1;
+    if (consecutivePollsBelowClean >= HYSTERESIS_COUNT) {
+      newState = "clean";
+    }
+  }
+
+  return {
+    chokepointId: current.chokepointId,
+    state: newState,
+    articleCount,
+    articles: articles.slice(0, 5),
+    lastUpdatedAt: new Date().toISOString(),
+    consecutivePollsAboveThreshold,
+    consecutivePollsBelowClean,
+  };
+}
+
+/** Initial state for a chokepoint not yet in KV */
+export function initialChokepointState(id: string): ChokepointState {
+  return {
+    chokepointId: id,
+    state: "unknown",
+    articleCount: 0,
+    articles: [],
+    lastUpdatedAt: new Date().toISOString(),
+    consecutivePollsAboveThreshold: 0,
+    consecutivePollsBelowClean: 0,
+  };
+}
+
+/**
+ * Read the full cache from KV. Returns empty cache on failure.
+ */
+export async function readCache(): Promise<DisruptionStateCache> {
+  try {
+    const cache = await kvGet<DisruptionStateCache>(KV_KEYS.STATE);
+    return cache ?? emptyCache();
+  } catch (err) {
+    console.error("[disruption-state] KV read error:", err);
+    return emptyCache();
+  }
+}
+
+/**
+ * Update a single chokepoint in KV under a write lock.
+ * Fetches full cache, updates the chokepoint, writes back.
+ *
+ * @param chokepointId - The chokepoint to update
+ * @param articleCount - GDELT article count from this poll
+ * @param articles - Article list from this poll
+ * @returns { success, newState }
+ */
+export async function updateChokepointInKV(
+  chokepointId: string,
+  articleCount: number,
+  articles: import("@/lib/types").NewsArticle[]
+): Promise<{ success: boolean; newState: DisruptionState; error?: string }> {
+  // Acquire write lock (SET NX with 30s TTL)
+  const locked = await kvSet(KV_KEYS.LOCK, "1", { ex: 30, nx: true });
+  if (!locked) {
+    console.warn(`[disruption-state] Lock held — skipping update for ${chokepointId}`);
+    return { success: false, newState: "unknown", error: "Lock held" };
+  }
+
+  try {
+    const cache = await readCache();
+    const current =
+      cache.chokepoints[chokepointId] ?? initialChokepointState(chokepointId);
+
+    const prevState = current.state;
+    const updated = computeNewState(current, articleCount, articles);
+
+    // Update previousStates for toast diff
+    const previousStates = { ...cache.previousStates };
+    if (updated.state !== prevState) {
+      previousStates[chokepointId] = prevState;
+    }
+
+    const newCache: DisruptionStateCache = {
+      ...cache,
+      chokepoints: {
+        ...cache.chokepoints,
+        [chokepointId]: updated,
+      },
+      previousStates,
+      fetchedAt: new Date().toISOString(),
+    };
+
+    await kvSet(KV_KEYS.STATE, newCache);
+
+    console.log(
+      `[disruption-state] ${chokepointId}: ${prevState} → ${updated.state} (articles: ${articleCount})`
+    );
+
+    return { success: true, newState: updated.state };
+  } catch (err) {
+    console.error(`[disruption-state] KV write error for ${chokepointId}:`, err);
+    return { success: false, newState: "unknown", error: String(err) };
+  } finally {
+    await kvDel(KV_KEYS.LOCK);
+  }
+}
+
+/**
+ * Check if the cache is stale (older than maxAgeMs).
+ */
+export function isCacheStale(
+  cache: DisruptionStateCache,
+  maxAgeMs = 15 * 60 * 1000 // 15 minutes
+): boolean {
+  if (!cache.fetchedAt) return true;
+  return Date.now() - new Date(cache.fetchedAt).getTime() > maxAgeMs;
+}

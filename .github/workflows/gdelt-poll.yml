@@ -1,0 +1,42 @@
+name: GDELT Poll — Refresh Disruption States
+
+on:
+  schedule:
+    # Every 15 minutes, 24/7
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    # Manual trigger for testing from GitHub UI
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Refresh all chokepoints in parallel
+        run: |
+          CHOKEPOINTS="strait-hormuz suez-canal strait-malacca bab-el-mandeb turkish-straits danish-straits cape-horn cape-good-hope strait-dover panama-canal"
+          POLL_URL="${{ secrets.VERCEL_POLL_URL }}"
+          SECRET="${{ secrets.CRON_SECRET }}"
+
+          if [ -z "$POLL_URL" ] || [ -z "$SECRET" ]; then
+            echo "Error: VERCEL_POLL_URL or CRON_SECRET secret not set"
+            exit 1
+          fi
+
+          echo "Polling ${POLL_URL} for all chokepoints..."
+
+          # Fire all 10 refresh requests in parallel (background jobs)
+          for cp in $CHOKEPOINTS; do
+            curl -s -w "\n%{http_code} $cp\n" \
+              -H "Authorization: Bearer $SECRET" \
+              "${POLL_URL}/api/refresh-chokepoint?id=${cp}" \
+              --max-time 12 \
+              --retry 1 \
+              --retry-delay 2 &
+          done
+
+          # Wait for all background jobs
+          wait
+
+          echo "All chokepoints polled."
