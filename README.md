@@ -1,40 +1,56 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/pages/api-reference/create-next-app).
+# Macro Map
 
-## Getting Started
+**Real-time disruption intelligence for global commodity chokepoints.**
 
-First, run the development server:
+Macro Map monitors the world's 10 most critical shipping chokepoints — Strait of Hormuz, Suez Canal, Bab-el-Mandeb, Malacca, and others — and surfaces stress signals before they move markets. It aggregates news volume (GDELT), conflict events (ACLED), disaster data (GDACS/USGS), and live oil prices (EIA) into a single live globe.
+
+Built for anyone curious about how the global economy actually works — from macro investors and commodities traders to students just starting to understand why oil prices move when ships can't get through a strait.
+
+---
+
+## What it tracks
+
+- **Disruption state** — each chokepoint is `clean`, `stressed`, or `disrupted`, updated every 15 minutes
+- **News velocity** — GDELT article volume as a leading indicator of developing situations
+- **Conflict events** — ACLED armed conflict data overlaid on shipping lanes
+- **Natural disasters** — GDACS/USGS events near strategic waterways
+- **Oil prices** — Brent & WTI live from EIA, with 30-day chart
+
+## Data sources
+
+| Source | What it provides | Refresh |
+|--------|-----------------|---------|
+| GDELT | News article volume per chokepoint | 15 min |
+| ACLED | Armed conflict events | 15 min |
+| GDACS / USGS | Disasters, earthquakes, floods | 15 min |
+| EIA v2 | Brent + WTI spot prices | 24h |
+| Oil Price API | Supplemental price data | 24h |
+
+## Running locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `pages/index.tsx`. The page auto-updates as you edit the file.
+Fixture data is on by default (`NEXT_PUBLIC_USE_GDELT_FIXTURES=true`) so the globe works without API keys.
 
-[API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.ts`.
+## Environment variables
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) instead of React pages.
+See `.env.example` for all required vars. For production you need:
 
-This project uses [`next/font`](https://nextjs.org/docs/pages/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `EIA_API_KEY` — [eia.gov/opendata](https://eia.gov/opendata)
+- `CRON_SECRET` — any UUID, used to authenticate the GitHub Actions cron
+- `ACLED_EMAIL` / `ACLED_PASSWORD` — [acleddata.com](https://acleddata.com)
+- `FIRMS_MAP_KEY` — NASA FIRMS fire/disaster data
+- `FRED_API_KEY` — [fred.stlouisfed.org](https://fred.stlouisfed.org)
 
-## Learn More
+## Deploying
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npx vercel --prod
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn-pages-router) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/pages/building-your-application/deploying) for more details.
+Add env vars in Vercel dashboard. Then add `VERCEL_POLL_URL` and `CRON_SECRET` to GitHub Secrets — the Actions cron will poll every 15 minutes automatically.

@@ -1,7 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { readCache, isCacheStale } from "@/lib/disruption-state";
+import { readCache, isCacheStale, computeNewState, initialChokepointState } from "@/lib/disruption-state";
 import type { DisruptionStateCache } from "@/lib/types";
 import { emptyCache } from "@/lib/types";
+import { kvSet, KV_KEYS } from "@/lib/kv";
 
 export default async function handler(
   req: NextApiRequest,
@@ -13,7 +14,27 @@ export default async function handler(
   }
 
   try {
-    const cache = await readCache();
+    let cache = await readCache();
+
+    // If KV is empty and fixtures are enabled, seed cache from fixtures immediately
+    const useFixtures = process.env.NEXT_PUBLIC_USE_GDELT_FIXTURES === "true";
+    const hasNoData = Object.keys(cache.chokepoints).length === 0;
+    if (hasNoData && useFixtures) {
+      const { GDELT_FIXTURES } = await import("@/lib/gdelt.fixtures");
+      const { CHOKEPOINTS } = await import("@/data/chokepoints");
+      const seeded = { ...cache };
+      seeded.chokepoints = {};
+      for (const cp of CHOKEPOINTS) {
+        const fixture = GDELT_FIXTURES[cp.id];
+        const articleCount = fixture?.articleCount ?? 0;
+        const articles = fixture?.articles ?? [];
+        const initial = initialChokepointState(cp.id);
+        seeded.chokepoints[cp.id] = computeNewState(initial, articleCount, articles);
+      }
+      seeded.fetchedAt = new Date().toISOString();
+      await kvSet(KV_KEYS.STATE, seeded);
+      cache = seeded;
+    }
 
     // Return cached data immediately
     res.status(200).json(cache);

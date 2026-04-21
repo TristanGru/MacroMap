@@ -308,6 +308,153 @@ export const ROUTES: ShippingRoute[] = [
       [121.5, 31.0],   // Shanghai
     ],
   },
+
+  // ── LITHIUM ROUTES ──────────────────────────────────────────────────────
+  {
+    id: "lithium-triangle-china",
+    name: "Lithium Triangle → China",
+    resourceType: "lithium",
+    flowMbpd: 4,
+    chokepointIds: ["panama-canal", "strait-malacca"],
+    waypoints: [
+      [-68.0, -23.0],   // Atacama, Chile
+      [-75.0, -10.0],   // Pacific coast
+      [-82.0, -2.0],    // Pacific E
+      [-79.92, 9.08],   // Panama Canal
+      [-100.0, 15.0],   // E Pacific
+      [-135.0, 25.0],   // Pacific
+      [170.0, 35.0],    // W Pacific
+      [140.0, 35.0],    // Japan
+      [121.5, 31.0],    // Shanghai
+    ],
+  },
+  {
+    id: "australia-lithium-china",
+    name: "Australia Lithium → China",
+    resourceType: "lithium",
+    flowMbpd: 5,
+    chokepointIds: ["strait-malacca"],
+    waypoints: [
+      [117.0, -33.0],   // Western Australia (Pilbara)
+      [115.0, -20.0],   // WA coast N
+      [118.0, -5.0],    // Java Sea
+      [108.0, 5.0],     // S China Sea
+      [103.85, 1.25],   // Malacca
+      [108.0, 14.0],    // S China Sea N
+      [114.0, 22.0],    // HK area
+      [121.5, 31.0],    // Shanghai
+    ],
+  },
+  // ── RARE EARTH ROUTES ──────────────────────────────────────────────────
+  {
+    id: "china-rare-earth-global",
+    name: "China Rare Earths → Global",
+    resourceType: "rare-earth",
+    flowMbpd: 3,
+    chokepointIds: ["strait-malacca", "suez-canal"],
+    waypoints: [
+      [117.0, 40.0],    // Inner Mongolia (Baotou)
+      [121.5, 31.0],    // Shanghai
+      [114.0, 15.0],    // S China Sea
+      [103.85, 1.25],   // Malacca
+      [80.0, 7.0],      // Indian Ocean
+      [60.0, 12.0],     // Arabian Sea
+      [43.45, 12.6],    // Bab-el-Mandeb
+      [32.35, 30.45],   // Suez Canal
+      [14.0, 37.0],     // Med
+      [4.5, 52.5],      // Rotterdam
+    ],
+  },
+  // ── IRON ORE ROUTES ──────────────────────────────────────────────────
+  {
+    id: "australia-ironore-china",
+    name: "Australia Iron Ore → China",
+    resourceType: "iron-ore",
+    flowMbpd: 10,
+    chokepointIds: ["strait-malacca"],
+    waypoints: [
+      [117.0, -20.0],   // Port Hedland, WA
+      [115.0, -10.0],   // WA coast N
+      [120.0, -5.0],    // Java Sea W
+      [108.0, 5.0],     // S China Sea
+      [114.0, 15.0],    // S China Sea N
+      [114.0, 22.0],    // HK/Guangzhou
+      [121.5, 31.0],    // Shanghai
+    ],
+  },
+  {
+    id: "brazil-ironore-china",
+    name: "Brazil Iron Ore → China",
+    resourceType: "iron-ore",
+    flowMbpd: 8,
+    chokepointIds: ["cape-good-hope", "strait-malacca"],
+    waypoints: [
+      [-38.0, -12.0],   // Ponta da Madeira, Brazil
+      [-30.0, -20.0],   // S Atlantic
+      [-10.0, -30.0],   // S Atlantic
+      [5.0, -35.0],     // Cape approach
+      [18.47, -34.36],  // Cape of Good Hope
+      [40.0, -20.0],    // Indian Ocean W
+      [70.0, -10.0],    // Indian Ocean C
+      [90.0, 0.0],      // Indian Ocean E
+      [103.85, 1.25],   // Malacca
+      [114.0, 22.0],    // S China Sea
+      [121.5, 31.0],    // Shanghai
+    ],
+  },
+  // ── URANIUM ROUTES ──────────────────────────────────────────────────
+  {
+    id: "kazakhstan-uranium-global",
+    name: "Kazakhstan Uranium → Global",
+    resourceType: "uranium",
+    flowMbpd: 2,
+    chokepointIds: ["turkish-straits"],
+    waypoints: [
+      [67.0, 48.0],     // Kazakhstan (Astana)
+      [55.0, 42.0],     // Caspian
+      [50.0, 38.0],     // Georgia/Black Sea
+      [33.0, 41.0],     // Black Sea W
+      [29.02, 41.13],   // Turkish Straits
+      [26.0, 37.0],     // Aegean
+      [14.0, 37.0],     // Med
+      [4.5, 52.5],      // Rotterdam
+    ],
+  },
+  // ── FERTILIZER ROUTES ──────────────────────────────────────────────
+  {
+    id: "russia-fertilizer-global",
+    name: "Russia Fertilizer → Global",
+    resourceType: "fertilizer",
+    flowMbpd: 5,
+    chokepointIds: ["danish-straits", "turkish-straits"],
+    waypoints: [
+      [37.0, 60.0],     // Russia (St. Petersburg area)
+      [20.0, 57.0],     // Baltic
+      [10.5, 57.5],     // Danish Straits
+      [5.0, 55.0],      // North Sea
+      [-5.0, 48.0],     // Bay of Biscay
+      [-25.0, 20.0],    // N Atlantic
+      [-60.0, 10.0],    // Caribbean
+      [-80.0, 27.0],    // Florida
+      [-90.0, 29.0],    // US Gulf (import terminal)
+    ],
+  },
+  {
+    id: "morocco-phosphate-global",
+    name: "Morocco Phosphate → Global",
+    resourceType: "fertilizer",
+    flowMbpd: 4,
+    chokepointIds: ["strait-dover"],
+    waypoints: [
+      [-8.0, 33.5],     // Casablanca, Morocco
+      [-5.0, 36.0],     // Gibraltar
+      [-8.0, 42.0],     // Atlantic
+      [1.5, 51.12],     // Dover
+      [-20.0, 40.0],    // Atlantic branch
+      [-60.0, 10.0],    // Caribbean
+      [-90.0, 29.0],    // US Gulf
+    ],
+  },
 ];
 
 export const ROUTE_MAP: Record<string, ShippingRoute> = Object.fromEntries(

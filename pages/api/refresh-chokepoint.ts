@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { queryGdelt } from "@/lib/gdelt";
-import { updateChokepointInKV } from "@/lib/disruption-state";
+import { updateChokepointInKV, appendRiskTimeline } from "@/lib/disruption-state";
 import { CHOKEPOINT_MAP } from "@/data/chokepoints";
 
 interface RefreshResponse {
@@ -71,8 +71,10 @@ export default async function handler(
       );
     }
 
-    // Update KV
+    // Update KV + append risk timeline
     const result = await updateChokepointInKV(id, articleCount, articlesWithThumbs);
+    // Fire-and-forget (non-blocking)
+    appendRiskTimeline(id, result.newState).catch(() => {});
 
     const duration = Date.now() - startTime;
     console.log(

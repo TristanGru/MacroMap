@@ -1,11 +1,34 @@
-import React, { useEffect, useRef } from "react";
-import type { Chokepoint, ChokepointState } from "@/lib/types";
+import React, { useEffect, useRef, useState } from "react";
+import type {
+  Chokepoint,
+  ChokepointState,
+  ConflictEvent,
+  RiskTimelineEntry,
+  DisruptionState,
+  DisasterEvent,
+  DisasterType,
+  HistoricalDisruption,
+} from "@/lib/types";
 import ArticleRow from "./ArticleRow";
+import RiskTimeline from "./RiskTimeline";
+import { getDisruptionsForChokepoint } from "@/data/historical-disruptions";
+
+const DISASTER_ICONS: Record<DisasterType, string> = {
+  earthquake: "🌍",
+  storm:      "🌀",
+  wildfire:   "🔥",
+  flood:      "🌊",
+  volcano:    "🌋",
+  drought:    "🌵",
+};
 
 interface SidebarProps {
   chokepoint: Chokepoint | null;
   state: ChokepointState | null;
   onClose: () => void;
+  conflictEvents?: ConflictEvent[];
+  disasterEvents?: DisasterEvent[];
+  brentAtLastClean?: { price: number; date: string } | null;
 }
 
 const STATE_LABELS: Record<string, string> = {
@@ -15,15 +38,30 @@ const STATE_LABELS: Record<string, string> = {
   unknown: "UNKNOWN",
 };
 
-export default function Sidebar({ chokepoint, state, onClose }: SidebarProps) {
+const STATE_COLORS: Record<DisruptionState, string> = {
+  clean: "#22c55e",
+  stressed: "#f59e0b",
+  disrupted: "#ef4444",
+  unknown: "#6b7280",
+};
+
+export default function Sidebar({
+  chokepoint,
+  state,
+  onClose,
+  conflictEvents = [],
+  disasterEvents = [],
+  brentAtLastClean,
+}: SidebarProps) {
   const isOpen = chokepoint !== null;
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const prevOpenRef = useRef(false);
+  const [riskTimeline, setRiskTimeline] = useState<RiskTimelineEntry[]>([]);
 
   // Focus close button when sidebar opens; restore focus on close
   useEffect(() => {
     if (isOpen && !prevOpenRef.current) {
-      setTimeout(() => closeButtonRef.current?.focus(), 300); // after slide-in
+      setTimeout(() => closeButtonRef.current?.focus(), 300);
     }
     prevOpenRef.current = isOpen;
   }, [isOpen]);
@@ -37,7 +75,47 @@ export default function Sidebar({ chokepoint, state, onClose }: SidebarProps) {
     return () => window.removeEventListener("keydown", handleKey);
   }, [isOpen, onClose]);
 
+  // Fetch risk timeline when chokepoint opens
+  useEffect(() => {
+    if (!chokepoint) {
+      setRiskTimeline([]);
+      return;
+    }
+    const fetchTimeline = async () => {
+      try {
+        const res = await fetch(`/api/risk-timeline/${chokepoint.id}`);
+        if (!res.ok) return;
+        const data: RiskTimelineEntry[] = await res.json();
+        setRiskTimeline(data);
+      } catch {
+        // Non-fatal
+      }
+    };
+    fetchTimeline();
+  }, [chokepoint?.id]);
+
+  // Nearby ACLED events for this chokepoint
+  const nearbyEvents = conflictEvents
+    .filter((e) => e.nearestChokepointId === chokepoint?.id)
+    .slice(0, 5);
+
+  // Nearby disaster events for this chokepoint
+  const nearbyDisasters = disasterEvents
+    .filter((e) => e.nearestChokepointId === chokepoint?.id)
+    .slice(0, 4);
+
+  // Historical disruptions for this chokepoint
+  const historicalDisruptions = chokepoint
+    ? getDisruptionsForChokepoint(chokepoint.id)
+    : [];
+
+  // Price delta since disruption
   const stateKey = state?.state ?? "unknown";
+  const isDisrupted = stateKey === "disrupted";
+  const priceDelta =
+    isDisrupted && brentAtLastClean && state
+      ? null // will be computed below once we have current brent — passed from parent
+      : null;
 
   return (
     <aside
@@ -77,16 +155,11 @@ export default function Sidebar({ chokepoint, state, onClose }: SidebarProps) {
             <img
               src={chokepoint.photoPath}
               alt={`Aerial view of ${chokepoint.name}`}
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-              }}
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
               onError={(e) => {
                 (e.target as HTMLImageElement).style.display = "none";
               }}
             />
-            {/* Close button */}
             <button
               ref={closeButtonRef}
               onClick={onClose}
@@ -115,9 +188,7 @@ export default function Sidebar({ chokepoint, state, onClose }: SidebarProps) {
 
           {/* Header */}
           <div style={{ padding: "16px 16px 8px", flexShrink: 0 }}>
-            <div
-              style={{ display: "flex", alignItems: "center", gap: "10px" }}
-            >
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <h2
                 style={{
                   fontFamily: "'IBM Plex Sans', sans-serif",
@@ -160,6 +231,11 @@ export default function Sidebar({ chokepoint, state, onClose }: SidebarProps) {
             )}
           </div>
 
+          {/* Price delta since disruption (BL-010) */}
+          {isDisrupted && brentAtLastClean && (
+            <PriceDeltaRow brentAtLastClean={brentAtLastClean} />
+          )}
+
           {/* Context card */}
           <div
             style={{
@@ -181,63 +257,399 @@ export default function Sidebar({ chokepoint, state, onClose }: SidebarProps) {
             </p>
           </div>
 
-          {/* Articles */}
+          {/* Scrollable content area */}
           <div
-            style={{
-              flex: 1,
-              overflowY: "auto",
-              minHeight: 0,
-            }}
+            style={{ flex: 1, overflowY: "auto", minHeight: 0 }}
             className="sidebar-scroll"
           >
-            <div
-              style={{
-                padding: "12px 16px 6px",
-                fontFamily: "'IBM Plex Sans', sans-serif",
-                fontSize: "11px",
-                fontWeight: 500,
-                color: "var(--color-text-muted)",
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-              }}
-            >
-              Recent News
-            </div>
-
-            {state === null && (
-              /* Skeleton rows */
-              <>
-                {[0, 1, 2].map((i) => (
-                  <SkeletonRow key={i} />
-                ))}
-              </>
-            )}
-
-            {state !== null && state.articles.length === 0 && (
-              <p
+            {/* Consumer impact explainer */}
+            {chokepoint.consumerImpact && (
+              <div
                 style={{
-                  padding: "16px",
-                  fontFamily: "'IBM Plex Sans', sans-serif",
-                  fontSize: "14px",
-                  color: "var(--color-text-muted)",
+                  margin: "12px 16px",
+                  padding: "12px 14px",
+                  background: "rgba(0, 212, 255, 0.06)",
+                  border: "1px solid rgba(0, 212, 255, 0.18)",
+                  borderLeft: "3px solid #00d4ff",
+                  borderRadius: "8px",
                 }}
               >
-                No articles found for this chokepoint in the last 24 hours.
-              </p>
+                <div
+                  style={{
+                    fontFamily: "'IBM Plex Sans', sans-serif",
+                    fontSize: "10px",
+                    fontWeight: 600,
+                    color: "#00d4ff",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.07em",
+                    marginBottom: "6px",
+                  }}
+                >
+                  💡 What this means for you
+                </div>
+                <p
+                  style={{
+                    fontFamily: "'IBM Plex Sans', sans-serif",
+                    fontSize: "13px",
+                    color: "rgba(255,255,255,0.8)",
+                    lineHeight: 1.6,
+                    margin: 0,
+                  }}
+                >
+                  {chokepoint.consumerImpact}
+                </p>
+              </div>
             )}
 
-            {state !== null &&
-              state.articles.map((article, i) => (
-                <ArticleRow
-                  key={i}
-                  article={article}
-                  resourceType={chokepoint.resourceTypes[0]}
-                />
-              ))}
+            {/* Nearby disaster events */}
+            {nearbyDisasters.length > 0 && (
+              <div>
+                <SectionLabel>Nearby Disasters</SectionLabel>
+                {nearbyDisasters.map((event) => (
+                  <DisasterEventRow key={event.id} event={event} />
+                ))}
+              </div>
+            )}
+
+            {/* Nearby conflict events */}
+            {nearbyEvents.length > 0 && (
+              <div>
+                <SectionLabel>Nearby Conflict Events</SectionLabel>
+                {nearbyEvents.map((event) => (
+                  <ConflictEventRow key={event.id} event={event} />
+                ))}
+              </div>
+            )}
+
+            {/* Historical disruptions */}
+            {historicalDisruptions.length > 0 && (
+              <div>
+                <SectionLabel>📜 Past Disruptions</SectionLabel>
+                {historicalDisruptions.map((d) => (
+                  <HistoricalDisruptionRow key={d.id} disruption={d} />
+                ))}
+              </div>
+            )}
+
+            {/* Recent news articles */}
+            <div>
+              <SectionLabel>Recent News</SectionLabel>
+
+              {state === null &&
+                [0, 1, 2].map((i) => <SkeletonRow key={i} />)}
+
+              {state !== null && state.articles.length === 0 && (
+                <p
+                  style={{
+                    padding: "16px",
+                    fontFamily: "'IBM Plex Sans', sans-serif",
+                    fontSize: "14px",
+                    color: "var(--color-text-muted)",
+                  }}
+                >
+                  No articles found in the last 24 hours.
+                </p>
+              )}
+
+              {state !== null &&
+                state.articles.map((article, i) => (
+                  <ArticleRow
+                    key={i}
+                    article={article}
+                    resourceType={chokepoint.resourceTypes[0]}
+                  />
+                ))}
+            </div>
+
+            {/* Risk timeline sparkline */}
+            <div
+              style={{
+                padding: "12px 16px",
+                borderTop: "1px solid var(--color-border)",
+              }}
+            >
+              <SectionLabel>30-Day Risk History</SectionLabel>
+              <RiskTimeline entries={riskTimeline} />
+            </div>
           </div>
         </>
       )}
     </aside>
+  );
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        padding: "12px 16px 6px",
+        fontFamily: "'IBM Plex Sans', sans-serif",
+        fontSize: "11px",
+        fontWeight: 500,
+        color: "var(--color-text-muted)",
+        textTransform: "uppercase",
+        letterSpacing: "0.06em",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function PriceDeltaRow({
+  brentAtLastClean,
+}: {
+  brentAtLastClean: { price: number; date: string };
+}) {
+  const daysAgo = Math.floor(
+    (Date.now() - new Date(brentAtLastClean.date).getTime()) / 86400000
+  );
+  const daysLabel = daysAgo === 0 ? "today" : `${daysAgo}d ago`;
+
+  return (
+    <div
+      style={{
+        margin: "0 16px 12px",
+        padding: "10px 12px",
+        background: "rgba(239, 68, 68, 0.08)",
+        border: "1px solid rgba(239, 68, 68, 0.2)",
+        borderRadius: "6px",
+        flexShrink: 0,
+      }}
+    >
+      <div
+        style={{
+          fontFamily: "'IBM Plex Sans', sans-serif",
+          fontSize: "11px",
+          color: "var(--color-text-muted)",
+          marginBottom: "3px",
+        }}
+      >
+        Price delta since disruption started {daysLabel}
+      </div>
+      <div
+        style={{
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: "13px",
+          color: "var(--color-text-data)",
+        }}
+      >
+        Brent at clean:{" "}
+        <span style={{ color: "#22c55e" }}>${brentAtLastClean.price.toFixed(2)}</span>
+        <span style={{ color: "var(--color-text-muted)", margin: "0 6px" }}>→</span>
+        <span style={{ color: "#ef4444" }}>now disrupted</span>
+      </div>
+    </div>
+  );
+}
+
+function ConflictEventRow({ event }: { event: ConflictEvent }) {
+  const daysAgo = Math.floor(
+    (Date.now() - new Date(event.date).getTime()) / 86400000
+  );
+  const timeLabel = daysAgo === 0 ? "today" : `${daysAgo}d ago`;
+
+  return (
+    <div
+      style={{
+        padding: "8px 16px",
+        borderBottom: "1px solid var(--color-border-subtle)",
+        display: "flex",
+        gap: "10px",
+        alignItems: "flex-start",
+      }}
+    >
+      <span
+        style={{
+          color: "#ef4444",
+          fontSize: "8px",
+          marginTop: "4px",
+          flexShrink: 0,
+        }}
+      >
+        ●
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontFamily: "'IBM Plex Sans', sans-serif",
+            fontSize: "12px",
+            fontWeight: 500,
+            color: "var(--color-text)",
+            marginBottom: "2px",
+          }}
+        >
+          {event.type} — {event.country}
+        </div>
+        <div
+          style={{
+            fontFamily: "'IBM Plex Sans', sans-serif",
+            fontSize: "11px",
+            color: "var(--color-text-muted)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {event.description}
+        </div>
+      </div>
+      <span
+        style={{
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: "10px",
+          color: "var(--color-text-dim)",
+          flexShrink: 0,
+        }}
+      >
+        {timeLabel}
+      </span>
+    </div>
+  );
+}
+
+function DisasterEventRow({ event }: { event: DisasterEvent }) {
+  const daysAgo = Math.floor(
+    (Date.now() - new Date(event.date).getTime()) / 86400000
+  );
+  const timeLabel = daysAgo === 0 ? "today" : `${daysAgo}d ago`;
+  const severityColor =
+    event.severity === "alert" ? "#ef4444" :
+    event.severity === "warning" ? "#f97316" : "#f59e0b";
+
+  return (
+    <div
+      style={{
+        padding: "8px 16px",
+        borderBottom: "1px solid var(--color-border-subtle)",
+        display: "flex",
+        gap: "10px",
+        alignItems: "flex-start",
+      }}
+    >
+      <span style={{ fontSize: "14px", flexShrink: 0, marginTop: "1px" }}>
+        {DISASTER_ICONS[event.type] ?? "⚠️"}
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontFamily: "'IBM Plex Sans', sans-serif",
+            fontSize: "12px",
+            fontWeight: 500,
+            color: severityColor,
+            marginBottom: "2px",
+          }}
+        >
+          {event.type.charAt(0).toUpperCase() + event.type.slice(1)} · {event.severity}
+        </div>
+        <div
+          style={{
+            fontFamily: "'IBM Plex Sans', sans-serif",
+            fontSize: "11px",
+            color: "var(--color-text-muted)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {event.description}
+        </div>
+      </div>
+      <span
+        style={{
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: "10px",
+          color: "var(--color-text-dim)",
+          flexShrink: 0,
+        }}
+      >
+        {timeLabel}
+      </span>
+    </div>
+  );
+}
+
+function HistoricalDisruptionRow({ disruption }: { disruption: HistoricalDisruption }) {
+  const [expanded, setExpanded] = useState(false);
+  const year = disruption.dateStart.slice(0, 4);
+  const isOngoing = !disruption.dateEnd;
+
+  return (
+    <div
+      style={{
+        padding: "8px 16px",
+        borderBottom: "1px solid var(--color-border-subtle)",
+        cursor: "pointer",
+      }}
+      onClick={() => setExpanded((e) => !e)}
+    >
+      <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+        <span
+          style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: "10px",
+            color: isOngoing ? "#ef4444" : "var(--color-text-dim)",
+            flexShrink: 0,
+            marginTop: "2px",
+            minWidth: "34px",
+          }}
+        >
+          {isOngoing ? "NOW" : year}
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              fontFamily: "'IBM Plex Sans', sans-serif",
+              fontSize: "12px",
+              fontWeight: 500,
+              color: "var(--color-text)",
+              lineHeight: 1.4,
+            }}
+          >
+            {disruption.title}
+          </div>
+          {expanded && (
+            <>
+              <p
+                style={{
+                  fontFamily: "'IBM Plex Sans', sans-serif",
+                  fontSize: "11px",
+                  color: "var(--color-text-muted)",
+                  lineHeight: 1.6,
+                  margin: "6px 0 0 0",
+                }}
+              >
+                {disruption.description}
+              </p>
+              {disruption.oilImpact && (
+                <div
+                  style={{
+                    marginTop: "6px",
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: "11px",
+                    color: "#f59e0b",
+                  }}
+                >
+                  ↑ {disruption.oilImpact}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        <span
+          style={{
+            color: "var(--color-text-dim)",
+            fontSize: "10px",
+            flexShrink: 0,
+            marginTop: "2px",
+          }}
+        >
+          {expanded ? "▲" : "▼"}
+        </span>
+      </div>
+    </div>
   );
 }
 

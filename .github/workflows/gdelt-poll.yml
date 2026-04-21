@@ -40,3 +40,39 @@ jobs:
           wait
 
           echo "All chokepoints polled."
+
+      - name: Refresh ACLED conflict events
+        run: |
+          POLL_URL="${{ secrets.VERCEL_POLL_URL }}"
+          SECRET="${{ secrets.CRON_SECRET }}"
+          if [ -z "$POLL_URL" ] || [ -z "$SECRET" ]; then
+            echo "Skipping ACLED refresh — secrets not set"
+            exit 0
+          fi
+          echo "Refreshing ACLED conflict events..."
+          curl -s -w "\n%{http_code}\n" \
+            -X POST \
+            -H "Authorization: Bearer $SECRET" \
+            "${POLL_URL}/api/refresh-acled" \
+            --max-time 30 \
+            --retry 1 \
+            --retry-delay 2
+          echo "ACLED refresh done."
+
+      - name: Refresh disaster events (USGS + GDACS + FIRMS)
+        run: |
+          POLL_URL="${{ secrets.VERCEL_POLL_URL }}"
+          SECRET="${{ secrets.CRON_SECRET }}"
+          if [ -z "$POLL_URL" ] || [ -z "$SECRET" ]; then
+            echo "Skipping disaster refresh — secrets not set"
+            exit 0
+          fi
+          echo "Refreshing disaster events..."
+          curl -s -w "\n%{http_code}\n" \
+            -X POST \
+            -H "Authorization: Bearer $SECRET" \
+            "${POLL_URL}/api/refresh-disasters" \
+            --max-time 60 \
+            --retry 1 \
+            --retry-delay 2
+          echo "Disaster refresh done."

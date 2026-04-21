@@ -1,4 +1,4 @@
-import type { ChokepointState, DisruptionState, DisruptionStateCache } from "@/lib/types";
+import type { ChokepointState, DisruptionState, DisruptionStateCache, RiskTimelineEntry } from "@/lib/types";
 import { kvGet, kvSet, kvDel, KV_KEYS } from "@/lib/kv";
 import { emptyCache } from "@/lib/types";
 
@@ -35,6 +35,19 @@ export function computeNewState(
   // consecutivePollsBelowClean counts polls with articleCount < STRESSED_THRESHOLD.
   // Require N-of-3 consecutive polls before transitioning in either direction.
   let newState = currentState;
+
+  // If state is unknown, skip hysteresis and transition immediately
+  if (currentState === "unknown") {
+    return {
+      chokepointId: current.chokepointId,
+      state: targetState,
+      articleCount,
+      articles: articles.slice(0, 5),
+      lastUpdatedAt: new Date().toISOString(),
+      consecutivePollsAboveThreshold: targetState !== "clean" ? 1 : 0,
+      consecutivePollsBelowClean: targetState === "clean" ? 1 : 0,
+    };
+  }
 
   if (targetState === "disrupted" || targetState === "stressed") {
     consecutivePollsAboveThreshold += 1;
@@ -124,6 +137,23 @@ export async function updateChokepointInKV(
       previousStates[chokepointId] = prevState;
     }
 
+    // BL-008: store brentAtLastClean when transitioning into disrupted
+    const brentAtLastClean = { ...(cache.brentAtLastClean ?? {}) };
+    const isNewlyDisrupted =
+      updated.state === "disrupted" &&
+      prevState !== "disrupted" &&
+      !brentAtLastClean[chokepointId];
+    if (isNewlyDisrupted && cache.prices.brent?.current != null) {
+      brentAtLastClean[chokepointId] = {
+        price: cache.prices.brent.current,
+        date: new Date().toISOString(),
+      };
+    }
+    // Reset when chokepoint returns to clean
+    if (updated.state === "clean" && prevState === "disrupted") {
+      brentAtLastClean[chokepointId] = null;
+    }
+
     const newCache: DisruptionStateCache = {
       ...cache,
       chokepoints: {
@@ -131,6 +161,7 @@ export async function updateChokepointInKV(
         [chokepointId]: updated,
       },
       previousStates,
+      brentAtLastClean,
       fetchedAt: new Date().toISOString(),
     };
 
@@ -146,6 +177,29 @@ export async function updateChokepointInKV(
     return { success: false, newState: "unknown", error: String(err) };
   } finally {
     await kvDel(KV_KEYS.LOCK);
+  }
+}
+
+/**
+ * Append a risk timeline entry for a chokepoint (BL-009).
+ * One entry per day — overwrites if same day, trims to last 30.
+ */
+export async function appendRiskTimeline(
+  chokepointId: string,
+  state: DisruptionState
+): Promise<void> {
+  const key = `risk-timeline:${chokepointId}`;
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+  try {
+    const existing = (await kvGet<RiskTimelineEntry[]>(key)) ?? [];
+    const filtered = existing.filter((e) => e.date !== today);
+    const updated = [...filtered, { date: today, state }]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-30);
+    await kvSet(key, updated);
+  } catch (err) {
+    console.warn(`[disruption-state] appendRiskTimeline failed for ${chokepointId}:`, err);
   }
 }
 

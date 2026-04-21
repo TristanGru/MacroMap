@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 
 const STORAGE_KEY = "onboarding_seen";
-const DISMISS_DELAY_MS = 5000;
+const DISMISS_DELAY_MS = 8000;
 
 function shouldShow(): boolean {
   try {
@@ -70,13 +70,24 @@ export default function OnboardingTooltip() {
       <p
         style={{
           fontFamily: "'IBM Plex Sans', sans-serif",
-          fontSize: "14px",
-          fontWeight: 500,
+          fontSize: "15px",
+          fontWeight: 600,
           color: "var(--color-text)",
-          margin: "0 0 4px 0",
+          margin: "0 0 6px 0",
         }}
       >
-        Live resource flows — oil, grain, gas.
+        Welcome to Macro Map 🌍
+      </p>
+      <p
+        style={{
+          fontFamily: "'IBM Plex Sans', sans-serif",
+          fontSize: "13px",
+          color: "var(--color-text-muted)",
+          margin: "0 0 4px 0",
+          lineHeight: 1.5,
+        }}
+      >
+        The lines show global shipping routes for oil, gas, grain, and more.
       </p>
       <p
         style={{
@@ -84,9 +95,11 @@ export default function OnboardingTooltip() {
           fontSize: "13px",
           color: "var(--color-text-muted)",
           margin: "0 0 10px 0",
+          lineHeight: 1.5,
         }}
       >
-        Red = disrupted. Click any marker for the news.
+        🟢 Normal &nbsp;·&nbsp; 🟡 Stressed &nbsp;·&nbsp; 🔴 Disrupted<br />
+        Click any dot on the globe to see what's happening.
       </p>
 
       {/* Progress bar */}

@@ -7,12 +7,19 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
+  ReferenceLine,
 } from "recharts";
 import type { PriceData } from "@/lib/types";
+
+export interface DisruptionMarker {
+  date: string;   // YYYY-MM-DD
+  label: string;  // short chokepoint name
+}
 
 interface PriceChartProps {
   brent: PriceData | null;
   wti: PriceData | null;
+  disruptionMarkers?: DisruptionMarker[];
 }
 
 interface ChartDataPoint {
@@ -46,7 +53,7 @@ function formatDate(dateStr: string) {
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
-export default function PriceChart({ brent, wti }: PriceChartProps) {
+export default function PriceChart({ brent, wti, disruptionMarkers = [] }: PriceChartProps) {
   const [expanded, setExpanded] = useState(false);
   const data = mergeHistory(brent, wti);
 
@@ -176,6 +183,22 @@ export default function PriceChart({ brent, wti }: PriceChartProps) {
                     return [`$${isNaN(num) ? "—" : num.toFixed(2)}`, ""] as [string, string];
                   }}
                 />
+                {disruptionMarkers.map((m) => (
+                  <ReferenceLine
+                    key={m.date + m.label}
+                    x={m.date}
+                    stroke="#ef4444"
+                    strokeWidth={1}
+                    strokeDasharray="4 2"
+                    label={{
+                      value: m.label,
+                      position: "insideTopRight",
+                      fill: "#ef4444",
+                      fontSize: 9,
+                      fontFamily: "'IBM Plex Sans', sans-serif",
+                    }}
+                  />
+                ))}
                 <Line
                   type="monotone"
                   dataKey="brent"

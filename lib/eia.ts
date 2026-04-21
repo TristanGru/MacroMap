@@ -10,10 +10,10 @@ const V2_ROUTES = {
   wti: `${EIA_V2_BASE}/petroleum/pri/spt/data/`,
 };
 
-// v2 series filter params
+// v2 series filter params (correct RBRTE / RWTC series IDs for /petroleum/pri/spt/data/)
 const V2_PARAMS = {
-  brent: "EPC0_PBR_NUS_DPBBL",
-  wti: "EPC0_PF4_Y35NY_DPG",
+  brent: "RBRTE",
+  wti: "RWTC",
 };
 
 // v1 fallback series IDs
@@ -148,15 +148,14 @@ export async function fetchPriceData(
   const seriesParam = V2_PARAMS[ticker];
   const v1Series = V1_SERIES[ticker];
 
-  // Try v2 first, fall back to v1
-  let result = await fetchEiaV2(seriesParam);
+  // EIA v1 API was retired Jan 2024 — v2 only
+  const result = await fetchEiaV2(seriesParam);
   if (!result) {
-    console.warn(`[eia] v2 failed for ${ticker}, trying v1 fallback`);
-    result = await fetchEiaV1(v1Series);
-  }
-
-  if (!result) {
-    console.error(`[eia] Both v2 and v1 failed for ${ticker}`);
+    if (!apiKey()) {
+      console.warn(`[eia] EIA_API_KEY not set — skipping ${ticker}`);
+    } else {
+      console.error(`[eia] v2 failed for ${ticker} (series: ${seriesParam})`);
+    }
     return null;
   }
 

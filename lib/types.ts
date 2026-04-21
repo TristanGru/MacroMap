@@ -5,7 +5,12 @@ export type ResourceType =
   | "container"
   | "copper"
   | "grain"
-  | "coal";
+  | "coal"
+  | "lithium"
+  | "rare-earth"
+  | "iron-ore"
+  | "uranium"
+  | "fertilizer";
 
 export type DisruptionState = "clean" | "stressed" | "disrupted" | "unknown";
 
@@ -25,6 +30,22 @@ export interface Chokepoint {
   summary: string;
   /** e.g. "/chokepoints/strait-hormuz.jpg" */
   photoPath: string;
+  /** Plain-English consumer impact if this chokepoint is disrupted */
+  consumerImpact: string;
+}
+
+// ── Historical Disruptions ────────────────────────────────────────────────────
+
+export interface HistoricalDisruption {
+  id: string;
+  chokepointId: string;
+  chokepointName: string;
+  title: string;
+  dateStart: string; // YYYY-MM-DD
+  dateEnd?: string;  // YYYY-MM-DD, if resolved
+  description: string;
+  oilImpact?: string; // e.g. "Brent +18% in 3 weeks"
+  resourceTypes: ResourceType[];
 }
 
 export interface ShippingRoute {
@@ -79,6 +100,8 @@ export interface DisruptionStateCache {
   fetchedAt: string; // ISO 8601
   /** Previous states for toast diff on next page load */
   previousStates: Record<string, DisruptionState>;
+  /** Brent price at last clean state, per chokepoint — for causality annotation */
+  brentAtLastClean: Record<string, { price: number; date: string } | null>;
 }
 
 /** Empty cache returned on KV error */
@@ -88,7 +111,91 @@ export function emptyCache(): DisruptionStateCache {
     prices: { brent: null, wti: null },
     fetchedAt: new Date().toISOString(),
     previousStates: {},
+    brentAtLastClean: {},
   };
+}
+
+// ── v2: Conflict Events (ACLED) ──────────────────────────────────────────────
+
+export interface ConflictEvent {
+  id: string;
+  lat: number;
+  lng: number;
+  type: string;
+  date: string; // ISO 8601
+  description: string; // truncated to 200 chars
+  country: string;
+  fatalities: number;
+  nearestChokepointId: string | null;
+  distanceKm: number | null;
+}
+
+export interface ConflictEventsCache {
+  events: ConflictEvent[];
+  fetchedAt: string; // ISO 8601
+}
+
+// ── v2: Extended Prices ───────────────────────────────────────────────────────
+
+export interface BDIData {
+  current: number;
+  delta24h: number;
+  fetchedAt: string; // ISO 8601
+}
+
+export interface CommodityPrices {
+  brent: PriceData | null;
+  wti: PriceData | null;
+  natGas: PriceData | null;
+  wheat: PriceData | null;
+  copper: PriceData | null;
+  bdi: BDIData | null;
+}
+
+// ── v2: Risk Timeline ─────────────────────────────────────────────────────────
+
+export interface RiskTimelineEntry {
+  date: string; // YYYY-MM-DD
+  state: DisruptionState;
+}
+
+// ── v3: Disaster Events ───────────────────────────────────────────────────────
+
+export type DisasterType = "earthquake" | "storm" | "wildfire" | "flood" | "volcano" | "drought";
+export type DisasterSeverity = "watch" | "warning" | "alert";
+
+export interface DisasterEvent {
+  id: string;
+  type: DisasterType;
+  severity: DisasterSeverity;
+  lat: number;
+  lng: number;
+  title: string;
+  description: string;
+  date: string; // ISO 8601
+  magnitude?: number; // earthquakes only
+  nearestChokepointId: string | null;
+  distanceKm: number | null;
+  source: "usgs" | "gdacs" | "firms";
+}
+
+export interface DisasterEventsCache {
+  events: DisasterEvent[];
+  fetchedAt: string; // ISO 8601
+}
+
+// ── v3: Macro Signals (FRED) ──────────────────────────────────────────────────
+
+export interface MacroSignal {
+  id: string;         // FRED series ID e.g. "CPIAUCSL"
+  label: string;      // display name e.g. "US CPI"
+  value: number;
+  delta: number;      // % change from previous period
+  unit: string;       // "%", "$/t", "idx"
+  direction: "up" | "down" | "flat";
+  date: string;       // YYYY-MM-DD of most recent observation
+  isAlert: boolean;   // true if |delta| >= alert threshold
+  category?: "macro" | "agriculture" | "energy"; // for grouping in UI
 }
 
 /** Get state color CSS variable name */

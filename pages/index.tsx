@@ -4,20 +4,22 @@ import { useRouter } from "next/router";
 import { toast } from "sonner";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import LoadingScreen from "@/components/LoadingScreen";
-import type { DisruptionStateCache, Chokepoint, ResourceType, DisruptionState } from "@/lib/types";
+import type { DisruptionStateCache, Chokepoint, ResourceType, DisruptionState, ConflictEvent, CommodityPrices, DisasterEvent, MacroSignal } from "@/lib/types";
 import { CHOKEPOINTS } from "@/data/chokepoints";
 import { ROUTES } from "@/data/routes";
 
-// Cesium must be dynamically imported (browser-only)
+// Globe uses Three.js canvas — browser-only
 const Globe = dynamic(() => import("@/components/Globe"), { ssr: false });
 const Sidebar = dynamic(() => import("@/components/Sidebar"), { ssr: false });
-const PriceTicker = dynamic(() => import("@/components/PriceTicker"), { ssr: false });
+const MacroPanel = dynamic(() => import("@/components/MacroPanel"), { ssr: false });
 const FilterPills = dynamic(() => import("@/components/FilterPills"), { ssr: false });
 const PriceChart = dynamic(() => import("@/components/PriceChart"), { ssr: false });
 const OnboardingTooltip = dynamic(() => import("@/components/OnboardingTooltip"), { ssr: false });
+const EventFeed = dynamic(() => import("@/components/EventFeed"), { ssr: false });
 
 const ALL_RESOURCE_TYPES: ResourceType[] = [
   "oil", "gas", "lng", "container", "copper", "grain", "coal",
+  "lithium", "rare-earth", "iron-ore", "uranium", "fertilizer",
 ];
 
 function parseFilterParam(param: string | undefined): ResourceType[] {
@@ -35,6 +37,11 @@ export default function Home() {
   const [selectedChokepoint, setSelectedChokepoint] = useState<Chokepoint | null>(null);
   const [activeFilters, setActiveFilters] = useState<ResourceType[]>(ALL_RESOURCE_TYPES);
   const [toastsShown, setToastsShown] = useState(false);
+  const [conflictEvents, setConflictEvents] = useState<ConflictEvent[]>([]);
+  const [disasterEvents, setDisasterEvents] = useState<DisasterEvent[]>([]);
+  const [commodityPrices, setCommodityPrices] = useState<CommodityPrices | null>(null);
+  const [macroSignals, setMacroSignals] = useState<MacroSignal[]>([]);
+  const [feedOpen, setFeedOpen] = useState(false);
 
   // Parse filter from URL on mount
   useEffect(() => {
@@ -56,6 +63,66 @@ export default function Home() {
       }
     };
     fetchStates();
+  }, []);
+
+  // Fetch conflict events (ACLED)
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        const res = await fetch("/api/conflict-events");
+        if (!res.ok) return;
+        const data = await res.json();
+        setConflictEvents(data.events ?? []);
+      } catch {
+        // Non-fatal — conflict events are supplementary
+      }
+    };
+    fetchEvents();
+  }, []);
+
+  // Fetch commodity prices (Oil Price API + BDI)
+  useEffect(() => {
+    const fetchPrices = async () => {
+      try {
+        const res = await fetch("/api/prices");
+        if (!res.ok) return;
+        const data: CommodityPrices = await res.json();
+        setCommodityPrices(data);
+      } catch {
+        // Non-fatal — prices panel will show "--"
+      }
+    };
+    fetchPrices();
+  }, []);
+
+  // Fetch disaster events (USGS + GDACS + FIRMS)
+  useEffect(() => {
+    const fetchDisasters = async () => {
+      try {
+        const res = await fetch("/api/disasters");
+        if (!res.ok) return;
+        const data = await res.json();
+        setDisasterEvents(data.events ?? []);
+      } catch {
+        // Non-fatal
+      }
+    };
+    fetchDisasters();
+  }, []);
+
+  // Fetch FRED macro signals
+  useEffect(() => {
+    const fetchSignals = async () => {
+      try {
+        const res = await fetch("/api/macro-signals");
+        if (!res.ok) return;
+        const data: MacroSignal[] = await res.json();
+        setMacroSignals(data);
+      } catch {
+        // Non-fatal
+      }
+    };
+    fetchSignals();
   }, []);
 
   // Show state-change toasts on cache update
@@ -133,14 +200,16 @@ export default function Home() {
         <Globe
           cache={cache}
           activeFilters={activeFilters}
+          conflictEvents={conflictEvents}
+          disasterEvents={disasterEvents}
           onChokepointClick={handleChokepointClick}
           onGlobeReady={() => setGlobeReady(true)}
         />
       </ErrorBoundary>
 
-      {/* Price ticker — fixed top-right */}
-      {globeReady && cache && (
-        <PriceTicker brent={cache.prices.brent} wti={cache.prices.wti} />
+      {/* Macro signals panel — fixed left */}
+      {globeReady && (
+        <MacroPanel prices={commodityPrices} cache={cache} macroSignals={macroSignals} disasterEvents={disasterEvents} />
       )}
 
       {/* Filter pills — fixed bottom-left */}
@@ -150,7 +219,18 @@ export default function Home() {
 
       {/* Price chart — collapsible bottom-center */}
       {globeReady && cache && (
-        <PriceChart brent={cache.prices.brent} wti={cache.prices.wti} />
+        <PriceChart
+          brent={cache.prices.brent}
+          wti={cache.prices.wti}
+          disruptionMarkers={Object.entries(cache.chokepoints)
+            .filter(([, s]) => s.state === "disrupted")
+            .flatMap(([id, s]) => {
+              const brentClean = cache.brentAtLastClean?.[id];
+              if (!brentClean) return [];
+              const cp = CHOKEPOINTS.find((c) => c.id === id);
+              return [{ date: brentClean.date, label: cp?.name.split(" ")[0] ?? id }];
+            })}
+        />
       )}
 
       {/* Sidebar — slide in from right on chokepoint click */}
@@ -159,6 +239,30 @@ export default function Home() {
           chokepoint={selectedChokepoint}
           state={selectedChokepoint ? (cache?.chokepoints[selectedChokepoint.id] ?? null) : null}
           onClose={handleSidebarClose}
+          conflictEvents={conflictEvents}
+          disasterEvents={disasterEvents}
+          brentAtLastClean={
+            selectedChokepoint
+              ? (cache?.brentAtLastClean?.[selectedChokepoint.id] ?? null)
+              : null
+          }
+        />
+      )}
+
+      {/* Event feed — toggleable right panel */}
+      {globeReady && (
+        <EventFeed
+          open={feedOpen}
+          onToggle={() => setFeedOpen((o) => !o)}
+          conflictEvents={conflictEvents}
+          disasterEvents={disasterEvents}
+          cache={cache}
+          onItemClick={(lat, lng, chokepointId) => {
+            if (chokepointId) {
+              const cp = CHOKEPOINTS.find((c) => c.id === chokepointId);
+              if (cp) handleChokepointClick(cp);
+            }
+          }}
         />
       )}
 

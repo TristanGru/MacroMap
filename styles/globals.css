@@ -7,8 +7,8 @@
 
 :root {
   /* Backgrounds */
-  --color-bg: #000000;
-  --color-surface: #0a0f1e;
+  --color-bg: #0a1628;
+  --color-surface: #0d1f3c;
   --color-surface-hover: rgba(255, 255, 255, 0.04);
 
   /* Borders */
@@ -30,14 +30,20 @@
   --color-disrupted: #ef4444;
   --color-unknown: #6b7280;
 
-  /* Resource type dots */
-  --color-oil: #f97316;
-  --color-gas: #60a5fa;
-  --color-lng: #a78bfa;
-  --color-container: #34d399;
-  --color-copper: #fb923c;
-  --color-grain: #fbbf24;
-  --color-coal: #9ca3af;
+  /* Resource type colors — kept distinct from state colors (green/amber/red) */
+  --color-oil: #0ea5e9;        /* sky blue */
+  --color-gas: #60a5fa;        /* blue */
+  --color-lng: #a78bfa;        /* purple */
+  --color-container: #34d399;  /* emerald */
+  --color-copper: #a855f7;     /* violet */
+  --color-grain: #a3e635;      /* lime */
+  --color-coal: #9ca3af;       /* gray */
+  /* New commodities */
+  --color-lithium: #e879f9;    /* fuchsia */
+  --color-rare-earth: #f472b6; /* pink */
+  --color-iron-ore: #78716c;   /* warm stone */
+  --color-uranium: #22d3ee;    /* cyan */
+  --color-fertilizer: #fb923c; /* orange */
 }
 
 /* Reset */
