@@ -13,13 +13,6 @@ const STATE_VALUE: Record<DisruptionState, number> = {
   disrupted: 2,
 };
 
-const STATE_LABELS: Record<number, string> = {
-  0: "clean",
-  0.3: "unknown",
-  1: "stressed",
-  2: "disrupted",
-};
-
 export default function RiskTimeline({ entries }: RiskTimelineProps) {
   if (entries.length === 0) {
     return (

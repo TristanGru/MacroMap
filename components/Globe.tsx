@@ -5,6 +5,10 @@ import type {
   Chokepoint,
   DisruptionState,
   ResourceType,
+  RouteStatus,
+  RouteFocusTarget,
+  RouteAccuracy,
+  TransportMode,
   ConflictEvent,
   DisasterEvent,
   DisasterType,
@@ -12,22 +16,27 @@ import type {
 } from "@/lib/types";
 import { CHOKEPOINTS } from "@/data/chokepoints";
 import { ROUTES } from "@/data/routes";
+import { PORTS } from "@/data/ports";
+import { normalizeDisasterEvents } from "@/lib/disaster-coordinates";
+import countryBorders from "@/data/country-borders.json";
 
 // ── Color maps ──────────────────────────────────────────────────────────────
 
 const RESOURCE_COLORS: Record<ResourceType, string> = {
   oil: "#0ea5e9",
-  gas: "#60a5fa",
+  gas: "#67e8f9",
   lng: "#a78bfa",
   container: "#34d399",
-  copper: "#a855f7",
+  copper: "#818cf8",
   grain: "#a3e635",
   coal: "#9ca3af",
   lithium: "#e879f9",
-  "rare-earth": "#f472b6",
+  cobalt: "#f472b6",
+  "rare-earth": "#2dd4bf",
+  "strategic-metals": "#fb923c",
   "iron-ore": "#78716c",
   uranium: "#22d3ee",
-  fertilizer: "#fb923c",
+  fertilizer: "#fde047",
 };
 
 const STATE_COLORS: Record<DisruptionState, string> = {
@@ -40,7 +49,7 @@ const STATE_COLORS: Record<DisruptionState, string> = {
 /** BL-002: arc color based on worst state across the route's chokepoints */
 function getArcColor(resourceType: ResourceType, state: DisruptionState): string {
   if (state === "disrupted") return "#ef4444";
-  if (state === "unknown") return "#6b7280";
+  if (state === "unknown") return RESOURCE_COLORS[resourceType];
   if (state === "stressed") {
     // 50% lerp between resource color and amber
     const r1 = parseInt(RESOURCE_COLORS[resourceType].slice(1, 3), 16);
@@ -53,6 +62,69 @@ function getArcColor(resourceType: ResourceType, state: DisruptionState): string
     return `#${r}${g}${b}`;
   }
   return RESOURCE_COLORS[resourceType];
+}
+
+function getTransportMode(resourceType: ResourceType, transportMode?: TransportMode): TransportMode {
+  return transportMode ?? (resourceType === "gas" ? "pipeline" : "sea");
+}
+
+function getTransportLabel(mode: TransportMode): string {
+  switch (mode) {
+    case "pipeline": return "Pipeline";
+    case "rail": return "Rail corridor";
+    case "road": return "Road corridor";
+    case "multimodal": return "Multimodal corridor";
+    default: return "Shipping route";
+  }
+}
+
+function getRouteStatus(routeStatus?: RouteStatus): RouteStatus {
+  return routeStatus ?? "primary";
+}
+
+function getRouteStatusLabel(status: RouteStatus): string {
+  switch (status) {
+    case "diversion": return "Diversion";
+    case "planned": return "Planned";
+    case "historical": return "Historical";
+    default: return "Primary";
+  }
+}
+
+function getRouteAccuracy(routeAccuracy?: RouteAccuracy): RouteAccuracy {
+  return routeAccuracy ?? "approximate";
+}
+
+function getRouteConfidenceLabel(routeAccuracy: RouteAccuracy, transportMode: TransportMode): string {
+  if (routeAccuracy === "observed") return "Confidence: observed corridor";
+  if (transportMode === "sea") return "Confidence: approximate sea lane";
+  return "Confidence: approximate corridor";
+}
+
+function getRouteFlowLabel(arc: ArcSegment): string {
+  if (arc.resourceType === "oil" && arc.transportMode === "sea") {
+    return `~${arc.flowMbpd}M barrels/day`;
+  }
+  return `Flow index ${arc.flowMbpd}`;
+}
+
+function toRgba(hex: string, alpha: number): string {
+  const clean = hex.replace("#", "");
+  const r = parseInt(clean.slice(0, 2), 16);
+  const g = parseInt(clean.slice(2, 4), 16);
+  const b = parseInt(clean.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function coordKey(coord: [number, number]): string {
+  return `${coord[0].toFixed(2)},${coord[1].toFixed(2)}`;
+}
+
+function angularDistanceSq(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const lngDelta = Math.abs(a.lng - b.lng);
+  const wrappedLngDelta = Math.min(lngDelta, 360 - lngDelta);
+  const latDelta = a.lat - b.lat;
+  return latDelta * latDelta + wrappedLngDelta * wrappedLngDelta;
 }
 
 // ── Data types for globe layers ─────────────────────────────────────────────
@@ -69,10 +141,18 @@ interface ArcSegment {
   routeId: string;
   routeName: string;
   resourceType: ResourceType;
+  routeStatus: RouteStatus;
+  routeAccuracy: RouteAccuracy;
+  transportMode: TransportMode;
   flowMbpd: number;
+  dashLength: number;
+  dashGap: number;
+  focusMatch: boolean;
+  focusDimmed: boolean;
 }
 
 interface ChokepointPoint {
+  _kind: "chokepoint";
   lat: number;
   lng: number;
   id: string;
@@ -80,6 +160,34 @@ interface ChokepointPoint {
   state: DisruptionState;
   articleCount: number;
 }
+
+interface PortPoint {
+  _kind: "port";
+  lat: number;
+  lng: number;
+  id: string;
+  name: string;
+  portType: "origin" | "destination" | "hub";
+  resourceTypes: ResourceType[];
+  description: string;
+}
+
+type GlobePoint = ChokepointPoint | PortPoint;
+
+interface CountryFeature {
+  properties?: {
+    ADMIN?: string;
+    NAME?: string;
+  };
+}
+
+const COUNTRY_BORDER_FEATURES = (countryBorders as { features: CountryFeature[] }).features;
+
+const PORT_COLORS = {
+  origin: "#f59e0b",
+  destination: "#60a5fa",
+  hub: "#14b8a6",
+} as const;
 
 // ── Disaster icon factory ────────────────────────────────────────────────────
 
@@ -167,9 +275,14 @@ function createDisasterIcon(
 interface GlobeProps {
   cache: DisruptionStateCache | null;
   activeFilters: ResourceType[];
+  activeRouteStatuses: RouteStatus[];
+  showCountryBorders?: boolean;
   conflictEvents?: ConflictEvent[];
   disasterEvents?: DisasterEvent[];
+  routeFocus: RouteFocusTarget | null;
+  viewResetKey?: number;
   onChokepointClick: (chokepoint: Chokepoint) => void;
+  onRouteFocusChange: (target: RouteFocusTarget | null) => void;
   onDisasterClick?: (event: DisasterEvent) => void;
   onGlobeReady: () => void;
 }
@@ -181,6 +294,7 @@ interface TooltipState {
   y: number;
   content:
     | { type: "chokepoint"; point: ChokepointPoint }
+    | { type: "port"; point: PortPoint }
     | { type: "arc"; arc: ArcSegment }
     | { type: "disaster"; event: DisasterEvent };
 }
@@ -190,14 +304,22 @@ interface TooltipState {
 export default function GlobeComponent({
   cache,
   activeFilters,
+  activeRouteStatuses,
+  showCountryBorders = false,
   conflictEvents = [],
   disasterEvents = [],
+  routeFocus,
+  viewResetKey = 0,
   onChokepointClick,
+  onRouteFocusChange,
   onDisasterClick,
   onGlobeReady,
 }: GlobeProps) {
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [dimensions, setDimensions] = useState({
+    width: typeof window !== "undefined" ? window.innerWidth : 800,
+    height: typeof window !== "undefined" ? window.innerHeight : 600,
+  });
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const mousePos = useRef({ x: 0, y: 0 });
 
@@ -218,13 +340,62 @@ export default function GlobeComponent({
     return () => window.removeEventListener("mousemove", handleMove);
   }, []);
 
+  useEffect(() => {
+    if (!routeFocus) return;
+
+    if (routeFocus.kind === "chokepoint") {
+      const cp = CHOKEPOINTS.find((c) => c.id === routeFocus.id);
+      if (!cp) return;
+      globeRef.current?.pointOfView(
+        { lat: cp.coordinates[1], lng: cp.coordinates[0], altitude: 1.2 },
+        1000
+      );
+      return;
+    }
+
+    const port = PORTS.find((p) => p.id === routeFocus.id);
+    if (!port) return;
+    globeRef.current?.pointOfView(
+      { lat: port.coordinates[1], lng: port.coordinates[0], altitude: 1.5 },
+      1000
+    );
+  }, [routeFocus]);
+
+  useEffect(() => {
+    if (viewResetKey === 0) return;
+    globeRef.current?.pointOfView({ lat: 20, lng: 10, altitude: 2.5 }, 900);
+  }, [viewResetKey]);
+
+  const focusedRouteIds = useMemo<Set<string>>(() => {
+    if (!routeFocus) return new Set();
+
+    if (routeFocus.kind === "chokepoint") {
+      return new Set(
+        ROUTES
+          .filter((route) => route.chokepointIds.includes(routeFocus.id))
+          .map((route) => route.id)
+      );
+    }
+
+    const port = PORTS.find((p) => p.id === routeFocus.id);
+    if (!port) return new Set();
+    const portCoord = coordKey(port.coordinates);
+    return new Set(
+      ROUTES
+        .filter((route) => route.waypoints.some((coord) => coordKey(coord) === portCoord))
+        .map((route) => route.id)
+    );
+  }, [routeFocus]);
+
   // ── Derive arc segments from routes ─────────────────────────────────────
 
   const arcSegments = useMemo<ArcSegment[]>(() => {
     const segments: ArcSegment[] = [];
     for (const route of ROUTES) {
-      // Filter by active resource types
-      if (activeFilters.length > 0 && !activeFilters.includes(route.resourceType)) continue;
+      // Filter by active resource types. Empty selection intentionally shows no routes.
+      if (!activeFilters.includes(route.resourceType)) continue;
+      const routeStatus = getRouteStatus(route.routeStatus);
+      if (activeRouteStatuses.length > 0 && !activeRouteStatuses.includes(routeStatus)) continue;
 
       // Worst state across this route's chokepoints (BL-002)
       const states = route.chokepointIds.map(
@@ -239,36 +410,37 @@ export default function GlobeComponent({
         : "clean";
 
       const color = getArcColor(route.resourceType, worstState);
-      // BL-003: altitude proportional to flow
-      const altitude = Math.min(0.4, 0.1 + route.flowMbpd / 150);
-      const stroke = Math.max(0.3, Math.min(2.0, route.flowMbpd / 12));
+      const focusMatch = !routeFocus || focusedRouteIds.has(route.id);
+      const focusDimmed = Boolean(routeFocus && !focusMatch);
+      const transportMode = getTransportMode(route.resourceType, route.transportMode);
+      const routeAccuracy = getRouteAccuracy(route.routeAccuracy);
+      const isLandMode = transportMode !== "sea";
+      const altitude = isLandMode ? 0.015 : Math.min(0.4, 0.1 + route.flowMbpd / 150);
+      const stroke = Math.max(
+        transportMode === "road" ? 0.2 : 0.3,
+        Math.min(isLandMode ? 1.4 : 2.0, route.flowMbpd / 12)
+      ) * (routeFocus && focusMatch ? 1.9 : 1);
+      const dashLength =
+        transportMode === "pipeline" ? 0.9 :
+        transportMode === "rail" ? 0.16 :
+        transportMode === "road" ? 0.07 :
+        transportMode === "multimodal" ? 0.24 :
+        0.4;
+      const dashGap =
+        transportMode === "pipeline" ? 0.04 :
+        transportMode === "rail" ? 0.08 :
+        transportMode === "road" ? 0.08 :
+        transportMode === "multimodal" ? 0.14 :
+        0.2;
       // BL-004: faster animation = more flow (gentler range: 3000–8000ms)
-      const animateTime = Math.max(3000, 8000 - route.flowMbpd * 80);
+      const animateTime = isLandMode
+        ? Math.max(5000, 11000 - route.flowMbpd * 80)
+        : Math.max(3000, 8000 - route.flowMbpd * 80);
 
-      // Find waypoint indices nearest to each chokepoint on this route
-      const mustInclude = new Set<number>([0, route.waypoints.length - 1]);
-      for (const cpId of route.chokepointIds) {
-        const cp = CHOKEPOINTS.find((c) => c.id === cpId);
-        if (!cp) continue;
-        const [cpLon, cpLat] = cp.coordinates;
-        let bestIdx = 0;
-        let bestDist = Infinity;
-        for (let i = 0; i < route.waypoints.length; i++) {
-          const [wLon, wLat] = route.waypoints[i];
-          const d = (wLon - cpLon) ** 2 + (wLat - cpLat) ** 2;
-          if (d < bestDist) { bestDist = d; bestIdx = i; }
-        }
-        mustInclude.add(bestIdx);
-      }
-
-      // Subsample: every 2nd waypoint + all chokepoint waypoints (keeps ocean path tight)
+      // Keep every waypoint. Skipping intermediate sea waypoints can make globe.gl
+      // draw a direct great-circle arc that cuts across land near coasts/straits.
       if (route.waypoints.length < 2) continue;
-      const sampled: [number, number][] = [];
-      for (let i = 0; i < route.waypoints.length; i++) {
-        if (i % 2 === 0 || mustInclude.has(i)) {
-          sampled.push(route.waypoints[i] as [number, number]);
-        }
-      }
+      const sampled = route.waypoints;
       for (let i = 0; i < sampled.length - 1; i++) {
         const [startLng, startLat] = sampled[i];
         const [endLng, endLat] = sampled[i + 1];
@@ -284,17 +456,25 @@ export default function GlobeComponent({
           routeId: route.id,
           routeName: route.name,
           resourceType: route.resourceType,
+          routeStatus,
+          routeAccuracy,
+          transportMode,
           flowMbpd: route.flowMbpd,
+          dashLength,
+          dashGap,
+          focusMatch,
+          focusDimmed,
         });
       }
     }
     return segments;
-  }, [cache, activeFilters]);
+  }, [cache, activeFilters, activeRouteStatuses, focusedRouteIds, routeFocus]);
 
   // ── Derive chokepoint points ─────────────────────────────────────────────
 
   const chokepointPoints = useMemo<ChokepointPoint[]>(() => {
     return CHOKEPOINTS.map((cp) => ({
+      _kind: "chokepoint" as const,
       lat: cp.coordinates[1],
       lng: cp.coordinates[0],
       id: cp.id,
@@ -303,6 +483,35 @@ export default function GlobeComponent({
       articleCount: cache?.chokepoints[cp.id]?.articleCount ?? 0,
     }));
   }, [cache]);
+
+  // ── Derive port points (filtered by active resource types) ───────────────
+
+  const portPoints = useMemo<PortPoint[]>(() => {
+    return PORTS
+      .filter((p) =>
+        activeFilters.length > 0 &&
+        p.resourceTypes.some((r) => activeFilters.includes(r))
+      )
+      .map((p) => ({
+        _kind: "port" as const,
+        lat: p.coordinates[1],
+        lng: p.coordinates[0],
+        id: p.id,
+        name: p.name,
+        portType: p.portType,
+        resourceTypes: p.resourceTypes,
+        description: p.description,
+      }));
+  }, [activeFilters]);
+
+  const allPoints = useMemo<GlobePoint[]>(
+    () => [...chokepointPoints, ...portPoints],
+    [chokepointPoints, portPoints]
+  );
+
+  const clickablePointByCoord = useMemo(() => {
+    return new Map(allPoints.map((point) => [coordKey([point.lng, point.lat]), point]));
+  }, [allPoints]);
 
   // ── Derive ring data from conflict events ────────────────────────────────
 
@@ -321,7 +530,7 @@ export default function GlobeComponent({
   // ── Filter disaster events — wildfires only at warning+ severity ────────
 
   const filteredDisasterEvents = useMemo(() => {
-    return disasterEvents.filter((e) => {
+    return normalizeDisasterEvents(disasterEvents).filter((e) => {
       if (e.type === "wildfire") return e.severity === "warning" || e.severity === "alert";
       return true;
     });
@@ -353,11 +562,20 @@ export default function GlobeComponent({
       setTooltip(null);
       return;
     }
-    setTooltip({
-      x: mousePos.current.x,
-      y: mousePos.current.y,
-      content: { type: "chokepoint", point: point as ChokepointPoint },
-    });
+    const p = point as GlobePoint;
+    if (p._kind === "port") {
+      setTooltip({
+        x: mousePos.current.x,
+        y: mousePos.current.y,
+        content: { type: "port", point: p },
+      });
+    } else {
+      setTooltip({
+        x: mousePos.current.x,
+        y: mousePos.current.y,
+        content: { type: "chokepoint", point: p },
+      });
+    }
   }, []);
 
   const handleArcHover = useCallback((arc: object | null) => {
@@ -376,23 +594,59 @@ export default function GlobeComponent({
 
   const handlePointClick = useCallback(
     (point: object) => {
-      const p = point as ChokepointPoint;
+      const p = point as GlobePoint;
+
+      // Ports: fly to location and pin the tooltip — no sidebar
+      if (p._kind === "port") {
+        onRouteFocusChange({ kind: "port", id: p.id, name: p.name });
+        globeRef.current?.pointOfView(
+          { lat: p.lat, lng: p.lng, altitude: 1.5 },
+          1200
+        );
+        setTooltip({
+          x: mousePos.current.x,
+          y: mousePos.current.y,
+          content: { type: "port", point: p },
+        });
+        return;
+      }
+
+      // Chokepoints: fly and open sidebar
       const cp = CHOKEPOINTS.find((c) => c.id === p.id);
       if (!cp) return;
-
-      // Fly to chokepoint
+      onRouteFocusChange({ kind: "chokepoint", id: cp.id, name: cp.name });
       globeRef.current?.pointOfView(
         { lat: p.lat, lng: p.lng, altitude: 1.2 },
         1500
       );
-
       onChokepointClick(cp);
       setTooltip(null);
     },
-    [onChokepointClick]
+    [onChokepointClick, onRouteFocusChange]
   );
 
   // ── Globe ready ──────────────────────────────────────────────────────────
+
+  const handleArcClick = useCallback(
+    (arcObject: object, _event?: MouseEvent, coords?: { lat: number; lng: number }) => {
+      const arc = arcObject as ArcSegment;
+      const candidates = [
+        clickablePointByCoord.get(coordKey([arc.startLng, arc.startLat])),
+        clickablePointByCoord.get(coordKey([arc.endLng, arc.endLat])),
+      ].filter((point): point is GlobePoint => Boolean(point));
+
+      if (candidates.length === 0) return;
+
+      const clicked = coords
+        ? candidates.reduce((best, point) =>
+            angularDistanceSq(point, coords) < angularDistanceSq(best, coords) ? point : best
+          )
+        : candidates[0];
+
+      handlePointClick(clicked);
+    },
+    [clickablePointByCoord, handlePointClick]
+  );
 
   const handleGlobeReady = useCallback(() => {
     // Set initial POV to center on the world
@@ -413,28 +667,48 @@ export default function GlobeComponent({
         atmosphereColor="#4fc3f7"
         atmosphereAltitude={0.18}
         onGlobeReady={handleGlobeReady}
+        polygonsData={showCountryBorders ? COUNTRY_BORDER_FEATURES : []}
+        polygonAltitude={0.003}
+        polygonCapColor={() => "rgba(255, 255, 255, 0.012)"}
+        polygonSideColor={() => "rgba(255, 255, 255, 0)"}
+        polygonStrokeColor={() => "rgba(226, 232, 240, 0.42)"}
+        polygonLabel={(d) => {
+          const feature = d as CountryFeature;
+          return feature.properties?.ADMIN || feature.properties?.NAME || "";
+        }}
+        polygonsTransitionDuration={0}
         // Arcs — animated shipping routes (BL-001 to BL-004)
         arcsData={arcSegments}
         arcStartLat={(d) => (d as ArcSegment).startLat}
         arcStartLng={(d) => (d as ArcSegment).startLng}
         arcEndLat={(d) => (d as ArcSegment).endLat}
         arcEndLng={(d) => (d as ArcSegment).endLng}
-        arcColor={(d: object) => (d as ArcSegment).color}
+        arcColor={(d: object) => {
+          const arc = d as ArcSegment;
+          return arc.focusDimmed ? toRgba(arc.color, 0.16) : arc.color;
+        }}
         arcAltitude={(d) => (d as ArcSegment).altitude}
         arcStroke={(d) => (d as ArcSegment).stroke}
-        arcDashLength={0.4}
-        arcDashGap={0.2}
+        arcDashLength={(d) => (d as ArcSegment).dashLength}
+        arcDashGap={(d) => (d as ArcSegment).dashGap}
         arcDashAnimateTime={(d) => (d as ArcSegment).animateTime}
+        onArcClick={handleArcClick}
         onArcHover={handleArcHover}
         arcLabel={() => ""}
-        // Points — chokepoint markers (BL-005)
-        pointsData={chokepointPoints}
-        pointLat={(d) => (d as ChokepointPoint).lat}
-        pointLng={(d) => (d as ChokepointPoint).lng}
-        pointColor={(d) => STATE_COLORS[(d as ChokepointPoint).state]}
-        pointAltitude={0.01}
+        // Points — chokepoints + ports combined
+        pointsData={allPoints}
+        pointLat={(d) => (d as GlobePoint).lat}
+        pointLng={(d) => (d as GlobePoint).lng}
+        pointColor={(d) => {
+          const p = d as GlobePoint;
+          if (p._kind === "port") return PORT_COLORS[p.portType];
+          return STATE_COLORS[p.state];
+        }}
+        pointAltitude={(d) => ((d as GlobePoint)._kind === "port" ? 0.016 : 0.01)}
         pointRadius={(d) => {
-          const state = (d as ChokepointPoint).state;
+          const p = d as GlobePoint;
+          if (p._kind === "port") return 0.3;
+          const state = p.state;
           if (state === "disrupted") return 0.6;
           if (state === "stressed") return 0.5;
           if (state === "clean") return 0.4;
@@ -529,6 +803,34 @@ function TooltipOverlay({ tooltip }: { tooltip: TooltipState }) {
     );
   }
 
+  if (tooltip.content.type === "port") {
+    const { point } = tooltip.content;
+    const color = PORT_COLORS[point.portType];
+    const label =
+      point.portType === "origin" ? "Export terminal" :
+      point.portType === "destination" ? "Import hub" : "Trading hub";
+    return (
+      <div style={{ ...style, borderLeft: `3px solid ${color}` }}>
+        <div style={{ fontFamily: "'IBM Plex Sans', sans-serif", fontSize: "13px", fontWeight: 600, color: "var(--color-text)", marginBottom: "3px" }}>
+          {point.name}
+        </div>
+        <div style={{ fontFamily: "'IBM Plex Sans', sans-serif", fontSize: "11px", color, marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          {label}
+        </div>
+        <div style={{ fontFamily: "'IBM Plex Sans', sans-serif", fontSize: "12px", color: "var(--color-text-muted)", marginBottom: "4px" }}>
+          {point.description}
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+          {point.resourceTypes.map((r) => (
+            <span key={r} style={{ fontFamily: "'IBM Plex Sans', sans-serif", fontSize: "10px", background: "var(--color-border)", color: "var(--color-text-muted)", borderRadius: "3px", padding: "1px 5px" }}>
+              {r}
+            </span>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   if (tooltip.content.type === "disaster") {
     const { event } = tooltip.content;
     const color = SEVERITY_COLORS[event.severity];
@@ -575,7 +877,8 @@ function TooltipOverlay({ tooltip }: { tooltip: TooltipState }) {
             color: "var(--color-text-muted)",
           }}
         >
-          {arc.resourceType.charAt(0).toUpperCase() + arc.resourceType.slice(1)} shipping route · ~{arc.flowMbpd}M barrels/day
+          {`${arc.resourceType.charAt(0).toUpperCase() + arc.resourceType.slice(1)} · ${getTransportLabel(arc.transportMode)} · ${getRouteStatusLabel(arc.routeStatus)} · ${getRouteConfidenceLabel(arc.routeAccuracy, arc.transportMode)}`}
+          {arc.transportMode === "sea" && ` · ${getRouteFlowLabel(arc)}`}
         </div>
       </div>
     );

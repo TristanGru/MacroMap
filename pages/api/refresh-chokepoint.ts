@@ -15,8 +15,8 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<RefreshResponse>
 ) {
-  if (req.method !== "GET" && req.method !== "POST") {
-    res.setHeader("Allow", "GET, POST");
+  if (req.method !== "POST") {
+    res.setHeader("Allow", "POST");
     return res.status(405).end();
   }
 
@@ -41,6 +41,7 @@ export default async function handler(
   }
 
   const startTime = Date.now();
+  const baseUrl = getBaseUrl(req);
 
   try {
     // Query GDELT for this chokepoint
@@ -53,7 +54,7 @@ export default async function handler(
         articles.map(async (article) => {
           try {
             const thumbRes = await fetch(
-              `/api/article-meta?url=${encodeURIComponent(article.url)}`,
+              `${baseUrl}/api/article-meta?url=${encodeURIComponent(article.url)}`,
               { signal: AbortSignal.timeout(2500) }
             ).catch(() => null);
 
@@ -92,4 +93,12 @@ export default async function handler(
     console.error(`[refresh-chokepoint] Error for ${id}:`, err);
     return res.status(500).json({ success: false, error: String(err) });
   }
+}
+
+function getBaseUrl(req: NextApiRequest): string {
+  const forwardedProto = req.headers["x-forwarded-proto"];
+  const protocol = Array.isArray(forwardedProto)
+    ? forwardedProto[0]
+    : forwardedProto || (process.env.NODE_ENV === "production" ? "https" : "http");
+  return `${protocol}://${req.headers.host}`;
 }

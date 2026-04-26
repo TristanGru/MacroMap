@@ -1,4 +1,4 @@
-import type { ChokepointState, DisruptionState, DisruptionStateCache, RiskTimelineEntry } from "@/lib/types";
+import type { ChokepointState, DisruptionState, DisruptionStateCache, RiskTimelineEntry, NewsArticle } from "@/lib/types";
 import { kvGet, kvSet, kvDel, KV_KEYS } from "@/lib/kv";
 import { emptyCache } from "@/lib/types";
 
@@ -16,7 +16,7 @@ const HYSTERESIS_COUNT = 3; // N-of-3 consecutive polls required to change state
 export function computeNewState(
   current: ChokepointState,
   articleCount: number,
-  articles: import("@/lib/types").NewsArticle[]
+  articles: NewsArticle[]
 ): ChokepointState {
   const currentState = current.state;
   let { consecutivePollsAboveThreshold, consecutivePollsBelowClean } = current;
@@ -114,7 +114,7 @@ export async function readCache(): Promise<DisruptionStateCache> {
 export async function updateChokepointInKV(
   chokepointId: string,
   articleCount: number,
-  articles: import("@/lib/types").NewsArticle[]
+  articles: NewsArticle[]
 ): Promise<{ success: boolean; newState: DisruptionState; error?: string }> {
   // Acquire write lock (SET NX with 30s TTL)
   const locked = await kvSet(KV_KEYS.LOCK, "1", { ex: 30, nx: true });

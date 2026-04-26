@@ -87,7 +87,7 @@ export default function OnboardingTooltip() {
           lineHeight: 1.5,
         }}
       >
-        The lines show global shipping routes for oil, gas, grain, and more.
+        The lines show macro-scale trade routes for oil, gas, grain, minerals, and shipping.
       </p>
       <p
         style={{
@@ -99,7 +99,7 @@ export default function OnboardingTooltip() {
         }}
       >
         🟢 Normal &nbsp;·&nbsp; 🟡 Stressed &nbsp;·&nbsp; 🔴 Disrupted<br />
-        Click any dot on the globe to see what's happening.
+        Click any dot on the globe to see what&apos;s happening.
       </p>
 
       {/* Progress bar */}
@@ -126,7 +126,12 @@ export default function OnboardingTooltip() {
           color: "var(--color-text-dim)",
           fontSize: "16px",
           cursor: "pointer",
-          padding: "4px",
+          width: "36px",
+          height: "36px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 0,
           lineHeight: 1,
         }}
         aria-label="Dismiss"

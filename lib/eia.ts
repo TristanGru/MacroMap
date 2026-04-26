@@ -1,7 +1,6 @@
 import type { PriceData, PricePoint } from "@/lib/types";
 
 const EIA_V2_BASE = "https://api.eia.gov/v2";
-const EIA_V1_BASE = "https://api.eia.gov/series";
 
 // Brent crude: petroleum/pri/spt Brent series
 // WTI: petroleum/pri/spt WTI series
@@ -14,12 +13,6 @@ const V2_ROUTES = {
 const V2_PARAMS = {
   brent: "RBRTE",
   wti: "RWTC",
-};
-
-// v1 fallback series IDs
-const V1_SERIES = {
-  brent: "PET.RBRTE.D",
-  wti: "PET.RWTC.D",
 };
 
 function apiKey(): string {
@@ -35,12 +28,6 @@ interface EiaV2Response {
   response?: {
     data?: EiaV2DataPoint[];
   };
-}
-
-interface EiaV1Response {
-  series?: Array<{
-    data?: Array<[string, number]>; // ["20260401", 89.40]
-  }>;
 }
 
 /**
@@ -94,51 +81,6 @@ async function fetchEiaV2(
 }
 
 /**
- * Fetch EIA v1 price data (fallback).
- */
-async function fetchEiaV1(
-  seriesId: string
-): Promise<{ current: number; history30d: PricePoint[] } | null> {
-  const key = apiKey();
-  if (!key) return null;
-
-  const params = new URLSearchParams({
-    api_key: key,
-    series_id: seriesId,
-    num: "31",
-    out: "json",
-    sort: "desc",
-  });
-
-  try {
-    const res = await fetch(`${EIA_V1_BASE}/?${params.toString()}`, {
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!res.ok) return null;
-
-    const json: EiaV1Response = await res.json();
-    const rawData = json.series?.[0]?.data;
-    if (!rawData || rawData.length === 0) return null;
-
-    const points: PricePoint[] = rawData
-      .map(([dateStr, price]) => {
-        // v1 format: "20260401" → "2026-04-01"
-        const d = String(dateStr);
-        const date = `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
-        return { date, price: typeof price === "number" ? price : 0 };
-      })
-      .sort((a, b) => a.date.localeCompare(b.date)); // ascending
-
-    const current = points[points.length - 1].price;
-    const history30d = points.slice(-30);
-
-    return { current, history30d };
-  } catch {
-    return null;
-  }
-}
-
-/**
  * Fetch both Brent and WTI prices.
  * Returns PriceData with delta calculated from the last two available points.
  */
@@ -146,7 +88,6 @@ export async function fetchPriceData(
   ticker: "brent" | "wti"
 ): Promise<PriceData | null> {
   const seriesParam = V2_PARAMS[ticker];
-  const v1Series = V1_SERIES[ticker];
 
   // EIA v1 API was retired Jan 2024 — v2 only
   const result = await fetchEiaV2(seriesParam);

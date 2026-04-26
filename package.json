@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "audit:routes": "node scripts/audit-routes.js",
+    "check:disasters": "node scripts/check-disaster-coordinates.js"
   },
   "dependencies": {
     "@vercel/kv": "^3.0.0",

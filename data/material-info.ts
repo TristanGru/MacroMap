@@ -32,7 +32,7 @@ export const MATERIAL_INFO: Record<ResourceType, MaterialInfo> = {
   gas: {
     label: "Natural Gas",
     emoji: "🔥",
-    color: "#60a5fa",
+    color: "#67e8f9",
     tagline: "The bridge fuel caught between climate goals and energy security",
     geopolitics:
       "Natural gas is harder to transport than oil — most travels via pipeline, making countries highly dependent on specific suppliers. Russia's gas cutoffs to Europe in 2022 caused an energy crisis and proved how weaponized pipeline dependency can be. LNG (liquefied form) allows sea transport but requires expensive infrastructure.",
@@ -77,7 +77,7 @@ export const MATERIAL_INFO: Record<ResourceType, MaterialInfo> = {
   copper: {
     label: "Copper",
     emoji: "🔩",
-    color: "#a855f7",
+    color: "#818cf8",
     tagline: "The metal the energy transition runs on",
     geopolitics:
       "Copper is in every wire, motor, and EV battery. The green energy transition requires 2–3x more copper than today's energy system. Chile and Peru together produce ~40% of global supply. China controls most of the refining capacity, giving it strategic leverage over the materials needed for anyone else's energy transition.",
@@ -134,10 +134,25 @@ export const MATERIAL_INFO: Record<ResourceType, MaterialInfo> = {
       { label: "China refining", value: "~80%" },
     ],
   },
+  cobalt: {
+    label: "Cobalt",
+    emoji: "Co",
+    color: "#f472b6",
+    tagline: "The battery metal concentrated in one fragile corridor",
+    geopolitics:
+      "Cobalt is used in high-performance batteries, superalloys, and defense supply chains. The Democratic Republic of Congo dominates mine supply, while China controls much of the refining and battery-material conversion. Any shock in Central Africa, the Lobito corridor, or Chinese processing policy can ripple quickly into EV and electronics supply chains.",
+    consumerImpact:
+      "Cobalt disruptions mostly show up through battery costs and availability. EV makers can substitute some chemistries, but phones, laptops, aerospace alloys, and premium batteries still depend on reliable cobalt flows.",
+    stats: [
+      { label: "Top mine source", value: "DRC" },
+      { label: "Top refiner", value: "China" },
+      { label: "Key uses", value: "Batteries, alloys, defense" },
+    ],
+  },
   "rare-earth": {
     label: "Rare Earth Metals",
     emoji: "🔬",
-    color: "#f472b6",
+    color: "#2dd4bf",
     tagline: "China's strategic trump card in tech competition",
     geopolitics:
       "Rare earths (17 elements including neodymium, dysprosium, cerium) are essential for EV motors, wind turbines, military guidance systems, and smartphones. China controls ~85% of global rare earth mining and ~90% of refining. In 2010, China cut rare earth exports to Japan during a territorial dispute — a preview of how this leverage could be used. The US and EU are scrambling to build alternative supply chains.",
@@ -147,6 +162,21 @@ export const MATERIAL_INFO: Record<ResourceType, MaterialInfo> = {
       { label: "China mining share", value: "~85%" },
       { label: "China refining share", value: "~90%" },
       { label: "Key uses", value: "EVs, wind, defense" },
+    ],
+  },
+  "strategic-metals": {
+    label: "Semiconductor / Strategic Metals",
+    emoji: "Si",
+    color: "#fb923c",
+    tagline: "Tiny volumes, enormous leverage",
+    geopolitics:
+      "Gallium, germanium, antimony, tungsten, and other strategic inputs move in small volumes but sit inside semiconductors, solar cells, fiber optics, night vision, ammunition, and advanced manufacturing. China is a major producer or processor for several of these materials and has used export controls as a policy tool. These flows are not bulky like iron ore, but they are highly strategic.",
+    consumerImpact:
+      "A strategic-metals disruption would not look like empty shelves overnight. It would tighten chips, defense electronics, solar components, telecom equipment, and specialized industrial parts, raising costs and delaying production for high-tech goods.",
+    stats: [
+      { label: "Key materials", value: "Ga, Ge, Sb, W" },
+      { label: "Critical users", value: "Chips, solar, defense" },
+      { label: "Main leverage", value: "Processing + export controls" },
     ],
   },
   "iron-ore": {
@@ -182,7 +212,7 @@ export const MATERIAL_INFO: Record<ResourceType, MaterialInfo> = {
   fertilizer: {
     label: "Fertilizers",
     emoji: "🌱",
-    color: "#fb923c",
+    color: "#fde047",
     tagline: "The hidden driver behind every food price spike",
     geopolitics:
       "Modern agriculture depends on nitrogen (from natural gas), phosphate (Morocco, China), and potash (Russia, Belarus, Canada) fertilizers. Russia and Belarus together supplied ~40% of global potash before 2022 sanctions. When fertilizer prices doubled in 2021–2022, farmers worldwide cut application — leading to lower crop yields and higher food prices 6–12 months later. This is one of the most direct links between geopolitics and grocery prices.",

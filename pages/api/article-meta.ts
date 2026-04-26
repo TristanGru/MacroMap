@@ -21,6 +21,10 @@ const PRIVATE_IP_PATTERNS = [
 ];
 
 const BLOCKED_HOSTNAMES = ["localhost", "0.0.0.0", "metadata.google.internal"];
+const MAX_HTML_BYTES = 300_000;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 30;
+const rateLimit = new Map<string, { count: number; resetAt: number }>();
 
 function isPrivateIp(hostname: string): boolean {
   if (BLOCKED_HOSTNAMES.includes(hostname.toLowerCase())) return true;
@@ -46,6 +50,25 @@ function validateUrl(urlStr: string): { valid: boolean; error?: string } {
   }
 
   return { valid: true };
+}
+
+function getClientKey(req: NextApiRequest): string {
+  const forwardedFor = req.headers["x-forwarded-for"];
+  if (typeof forwardedFor === "string" && forwardedFor.length > 0) {
+    return forwardedFor.split(",")[0].trim();
+  }
+  return req.socket.remoteAddress ?? "unknown";
+}
+
+function isRateLimited(key: string): boolean {
+  const now = Date.now();
+  const current = rateLimit.get(key);
+  if (!current || current.resetAt < now) {
+    rateLimit.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+  current.count += 1;
+  return current.count > RATE_LIMIT_MAX;
 }
 
 async function fetchWithRedirectValidation(
@@ -106,6 +129,10 @@ export default async function handler(
     return res.status(400).json({ thumbnailUrl: null });
   }
 
+  if (isRateLimited(getClientKey(req))) {
+    return res.status(429).json({ thumbnailUrl: null });
+  }
+
   // Validate the initial URL
   const validation = validateUrl(urlParam);
   if (!validation.valid) {
@@ -120,7 +147,13 @@ export default async function handler(
     try {
       response = await fetchWithRedirectValidation(urlParam);
       if (response?.ok) {
+        const contentType = response.headers.get("content-type") ?? "";
+        const contentLength = Number(response.headers.get("content-length") ?? 0);
+        if (!contentType.includes("text/html") || contentLength > MAX_HTML_BYTES) {
+          break;
+        }
         html = await response.text();
+        if (html.length > MAX_HTML_BYTES) html = html.slice(0, MAX_HTML_BYTES);
         break;
       }
     } catch {

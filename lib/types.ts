@@ -7,12 +7,24 @@ export type ResourceType =
   | "grain"
   | "coal"
   | "lithium"
+  | "cobalt"
   | "rare-earth"
+  | "strategic-metals"
   | "iron-ore"
   | "uranium"
   | "fertilizer";
 
 export type DisruptionState = "clean" | "stressed" | "disrupted" | "unknown";
+export type TransportMode = "sea" | "pipeline" | "rail" | "road" | "multimodal";
+export type RouteStatus = "primary" | "diversion" | "planned" | "historical";
+export type RouteAccuracy = "observed" | "approximate";
+export type RouteFocusKind = "port" | "chokepoint";
+
+export interface RouteFocusTarget {
+  kind: RouteFocusKind;
+  id: string;
+  name: string;
+}
 
 export interface Chokepoint {
   id: string;
@@ -48,10 +60,26 @@ export interface HistoricalDisruption {
   resourceTypes: ResourceType[];
 }
 
+export interface Port {
+  id: string;
+  name: string;
+  /** [lon, lat] */
+  coordinates: [number, number];
+  portType: "origin" | "destination" | "hub";
+  resourceTypes: ResourceType[];
+  description: string;
+}
+
 export interface ShippingRoute {
   id: string;
   name: string;
   resourceType: ResourceType;
+  /** Defaults to "primary" */
+  routeStatus?: RouteStatus;
+  /** Defaults to "approximate". Use "observed" only for sourced corridors or observed disruption reroutes. */
+  routeAccuracy?: RouteAccuracy;
+  /** Defaults to "sea" for non-gas routes and "pipeline" for gas routes */
+  transportMode?: TransportMode;
   /** [lon, lat] coordinate pairs along the route */
   waypoints: [number, number][];
   chokepointIds: string[];

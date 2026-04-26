@@ -29,6 +29,7 @@ jobs:
           # Fire all 10 refresh requests in parallel (background jobs)
           for cp in $CHOKEPOINTS; do
             curl -s -w "\n%{http_code} $cp\n" \
+              -X POST \
               -H "Authorization: Bearer $SECRET" \
               "${POLL_URL}/api/refresh-chokepoint?id=${cp}" \
               --max-time 12 \

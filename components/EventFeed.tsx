@@ -131,7 +131,7 @@ export default function EventFeed({
     // Sort newest first
     items.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
     return items.slice(0, 50);
-  }, [conflictEvents, cache]);
+  }, [conflictEvents, disasterEvents, cache]);
 
   // Toggle button — always visible
   const toggleButton = (
@@ -140,7 +140,7 @@ export default function EventFeed({
       style={{
         position: "fixed",
         right: open ? "376px" : "16px",
-        bottom: "80px",
+        top: "16px",
         background: "rgba(10, 15, 30, 0.92)",
         backdropFilter: "blur(12px)",
         border: "1px solid var(--color-border)",

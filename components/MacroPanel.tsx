@@ -113,7 +113,8 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
 }
 
 export default function MacroPanel({ prices, cache, macroSignals = [], disasterEvents = [] }: MacroPanelProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const compact = typeof window !== "undefined" && window.innerWidth <= 700;
+  const [collapsed, setCollapsed] = useState(compact);
 
   // US wildfires near agricultural regions
   const usAgriWildfires = disasterEvents.filter(
@@ -137,15 +138,16 @@ export default function MacroPanel({ prices, cache, macroSignals = [], disasterE
     position: "fixed",
     left: 16,
     top: 16,
-    bottom: 16,
-    width: collapsed ? "44px" : "240px",
+    bottom: compact ? "auto" : 58,
+    width: collapsed ? "44px" : compact ? "min(280px, calc(100vw - 32px))" : "240px",
+    height: compact ? (collapsed ? "44px" : "min(520px, calc(100vh - 32px))") : "auto",
     background: "rgba(10, 15, 30, 0.92)",
     backdropFilter: "blur(12px)",
     border: "1px solid var(--color-border)",
     borderRadius: "10px",
     zIndex: 50,
     overflow: "hidden",
-    transition: "width 200ms ease-out",
+    transition: "width 200ms ease-out, height 200ms ease-out",
     display: "flex",
     flexDirection: "column",
   };

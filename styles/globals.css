@@ -32,18 +32,20 @@
 
   /* Resource type colors — kept distinct from state colors (green/amber/red) */
   --color-oil: #0ea5e9;        /* sky blue */
-  --color-gas: #60a5fa;        /* blue */
+  --color-gas: #67e8f9;        /* cyan-sky */
   --color-lng: #a78bfa;        /* purple */
   --color-container: #34d399;  /* emerald */
-  --color-copper: #a855f7;     /* violet */
+  --color-copper: #818cf8;     /* indigo */
   --color-grain: #a3e635;      /* lime */
   --color-coal: #9ca3af;       /* gray */
   /* New commodities */
   --color-lithium: #e879f9;    /* fuchsia */
-  --color-rare-earth: #f472b6; /* pink */
+  --color-cobalt: #f472b6;     /* pink */
+  --color-rare-earth: #2dd4bf; /* teal */
+  --color-strategic-metals: #fb923c; /* orange */
   --color-iron-ore: #78716c;   /* warm stone */
   --color-uranium: #22d3ee;    /* cyan */
-  --color-fertilizer: #fb923c; /* orange */
+  --color-fertilizer: #fde047; /* yellow */
 }
 
 /* Reset */
@@ -100,6 +102,12 @@ html, body {
 .cesium-viewer-bottom,
 .cesium-viewer-fullscreenContainer {
   display: none !important;
+}
+
+/* Material card entrance */
+@keyframes materialCardIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /* Scrollbar styling for sidebar */

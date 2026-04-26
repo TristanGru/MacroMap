@@ -53,6 +53,7 @@ export default async function handler(
         Promise.all(
           CHOKEPOINTS.map((cp) =>
             fetch(`${baseUrl}/api/refresh-chokepoint?id=${cp.id}`, {
+              method: "POST",
               headers: { Authorization: `Bearer ${cronSecret}` },
               signal: AbortSignal.timeout(15000),
             }).catch((err) =>

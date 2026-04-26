@@ -54,12 +54,6 @@ async function fetchCropCondition(
     const goodPct = parseFloat(latest.Value);
     if (isNaN(goodPct)) return null;
 
-    // Get previous to calculate delta
-    const prev = records.length >= 2
-      ? records.sort((a, b) => b.week_ending.localeCompare(a.week_ending))[1]
-      : null;
-    const prevPct = prev ? parseFloat(prev.Value) : goodPct;
-
     return {
       goodExcellent: goodPct,
       date: latest.week_ending,

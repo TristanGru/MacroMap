@@ -4,6 +4,7 @@ import { fetchEarthquakes } from "@/lib/usgs";
 import { fetchGDACSEvents } from "@/lib/gdacs";
 import { fetchWildfires } from "@/lib/firms";
 import type { DisasterEventsCache } from "@/lib/types";
+import { normalizeDisasterEvents } from "@/lib/disaster-coordinates";
 
 const CACHE_KEY = "disaster-events";
 const CACHE_TTL_SEC = 900; // 15 min
@@ -32,7 +33,19 @@ export default async function handler(
       fetchWildfires(),
     ]);
 
-    const events = [...earthquakes, ...gdacs, ...wildfires].sort(
+    const usgsEarthquakeIds = new Set(
+      earthquakes.map((event) => `${event.lat.toFixed(1)},${event.lng.toFixed(1)}`)
+    );
+    const gdacsWithoutDuplicateQuakes = gdacs.filter((event) => {
+      if (event.type !== "earthquake") return true;
+      return !usgsEarthquakeIds.has(`${event.lat.toFixed(1)},${event.lng.toFixed(1)}`);
+    });
+
+    const events = normalizeDisasterEvents([
+      ...earthquakes,
+      ...gdacsWithoutDuplicateQuakes,
+      ...wildfires,
+    ]).sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
 

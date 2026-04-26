@@ -1,10 +1,10 @@
+/* eslint-disable @next/next/no-img-element */
 import React, { useEffect, useRef, useState } from "react";
 import type {
   Chokepoint,
   ChokepointState,
   ConflictEvent,
   RiskTimelineEntry,
-  DisruptionState,
   DisasterEvent,
   DisasterType,
   HistoricalDisruption,
@@ -38,13 +38,6 @@ const STATE_LABELS: Record<string, string> = {
   unknown: "UNKNOWN",
 };
 
-const STATE_COLORS: Record<DisruptionState, string> = {
-  clean: "#22c55e",
-  stressed: "#f59e0b",
-  disrupted: "#ef4444",
-  unknown: "#6b7280",
-};
-
 export default function Sidebar({
   chokepoint,
   state,
@@ -57,6 +50,7 @@ export default function Sidebar({
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const prevOpenRef = useRef(false);
   const [riskTimeline, setRiskTimeline] = useState<RiskTimelineEntry[]>([]);
+  const [nowMs, setNowMs] = useState(0);
 
   // Focus close button when sidebar opens; restore focus on close
   useEffect(() => {
@@ -75,24 +69,34 @@ export default function Sidebar({
     return () => window.removeEventListener("keydown", handleKey);
   }, [isOpen, onClose]);
 
+  const chokepointId = chokepoint?.id ?? null;
+
+  useEffect(() => {
+    if (isOpen) queueMicrotask(() => setNowMs(Date.now()));
+  }, [isOpen, chokepointId]);
+
   // Fetch risk timeline when chokepoint opens
   useEffect(() => {
-    if (!chokepoint) {
-      setRiskTimeline([]);
+    if (!chokepointId) {
+      queueMicrotask(() => setRiskTimeline([]));
       return;
     }
+    let cancelled = false;
     const fetchTimeline = async () => {
       try {
-        const res = await fetch(`/api/risk-timeline/${chokepoint.id}`);
+        const res = await fetch(`/api/risk-timeline/${chokepointId}`);
         if (!res.ok) return;
         const data: RiskTimelineEntry[] = await res.json();
-        setRiskTimeline(data);
+        if (!cancelled) setRiskTimeline(data);
       } catch {
         // Non-fatal
       }
     };
     fetchTimeline();
-  }, [chokepoint?.id]);
+    return () => {
+      cancelled = true;
+    };
+  }, [chokepointId]);
 
   // Nearby ACLED events for this chokepoint
   const nearbyEvents = conflictEvents
@@ -116,6 +120,7 @@ export default function Sidebar({
     isDisrupted && brentAtLastClean && state
       ? null // will be computed below once we have current brent — passed from parent
       : null;
+  void priceDelta;
 
   return (
     <aside
@@ -128,7 +133,7 @@ export default function Sidebar({
         right: 0,
         top: "7.5vh",
         height: "85vh",
-        width: "400px",
+        width: "min(400px, calc(100vw - 24px))",
         background: "rgba(10, 15, 30, 0.92)",
         backdropFilter: "blur(12px)",
         borderLeft: "1px solid var(--color-border)",
@@ -233,7 +238,7 @@ export default function Sidebar({
 
           {/* Price delta since disruption (BL-010) */}
           {isDisrupted && brentAtLastClean && (
-            <PriceDeltaRow brentAtLastClean={brentAtLastClean} />
+            <PriceDeltaRow brentAtLastClean={brentAtLastClean} nowMs={nowMs} />
           )}
 
           {/* Context card */}
@@ -306,7 +311,7 @@ export default function Sidebar({
               <div>
                 <SectionLabel>Nearby Disasters</SectionLabel>
                 {nearbyDisasters.map((event) => (
-                  <DisasterEventRow key={event.id} event={event} />
+                  <DisasterEventRow key={event.id} event={event} nowMs={nowMs} />
                 ))}
               </div>
             )}
@@ -316,7 +321,7 @@ export default function Sidebar({
               <div>
                 <SectionLabel>Nearby Conflict Events</SectionLabel>
                 {nearbyEvents.map((event) => (
-                  <ConflictEventRow key={event.id} event={event} />
+                  <ConflictEventRow key={event.id} event={event} nowMs={nowMs} />
                 ))}
               </div>
             )}
@@ -400,11 +405,14 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function PriceDeltaRow({
   brentAtLastClean,
+  nowMs,
 }: {
   brentAtLastClean: { price: number; date: string };
+  nowMs: number;
 }) {
+  const currentMs = nowMs || new Date(brentAtLastClean.date).getTime();
   const daysAgo = Math.floor(
-    (Date.now() - new Date(brentAtLastClean.date).getTime()) / 86400000
+    (currentMs - new Date(brentAtLastClean.date).getTime()) / 86400000
   );
   const daysLabel = daysAgo === 0 ? "today" : `${daysAgo}d ago`;
 
@@ -445,9 +453,10 @@ function PriceDeltaRow({
   );
 }
 
-function ConflictEventRow({ event }: { event: ConflictEvent }) {
+function ConflictEventRow({ event, nowMs }: { event: ConflictEvent; nowMs: number }) {
+  const currentMs = nowMs || new Date(event.date).getTime();
   const daysAgo = Math.floor(
-    (Date.now() - new Date(event.date).getTime()) / 86400000
+    (currentMs - new Date(event.date).getTime()) / 86400000
   );
   const timeLabel = daysAgo === 0 ? "today" : `${daysAgo}d ago`;
 
@@ -510,9 +519,10 @@ function ConflictEventRow({ event }: { event: ConflictEvent }) {
   );
 }
 
-function DisasterEventRow({ event }: { event: DisasterEvent }) {
+function DisasterEventRow({ event, nowMs }: { event: DisasterEvent; nowMs: number }) {
+  const currentMs = nowMs || new Date(event.date).getTime();
   const daysAgo = Math.floor(
-    (Date.now() - new Date(event.date).getTime()) / 86400000
+    (currentMs - new Date(event.date).getTime()) / 86400000
   );
   const timeLabel = daysAgo === 0 ? "today" : `${daysAgo}d ago`;
   const severityColor =

@@ -29,6 +29,7 @@ export default function MaterialCard({ resourceType, onClose }: MaterialCardProp
         zIndex: 70,
         overflow: "hidden",
         boxShadow: `0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px ${info.color}22`,
+        animation: "materialCardIn 180ms ease-out",
       }}
     >
       {/* Header */}
