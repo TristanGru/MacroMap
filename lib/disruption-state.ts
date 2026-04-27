@@ -9,6 +9,52 @@ const DISRUPTION_THRESHOLD = parseInt(
 const STRESSED_THRESHOLD = 3;
 const HYSTERESIS_COUNT = 3; // N-of-3 consecutive polls required to change state
 
+const STRONG_OPERATIONAL_PATTERNS = [
+  /\b(blocked|closed|closure|shut(?:\s|-)?down|halted|stopped|suspended)\b/i,
+  /\b(rerout(?:e|ed|ing)|divert(?:ed|ing|sion)|avoid(?:ed|ing) route)\b/i,
+  /\b(transit restrictions?|capacity cuts?|draft restrictions?|daily transits? (?:cut|reduced))\b/i,
+  /\b(seized|hijacked|grounded|ran aground|collision|struck by|hit by)\b/i,
+  /\b(port closed|canal closed|strait closed|shipping lane closed)\b/i,
+  /\b(attacks? (?:force|forced|halt|halted|stop|stopped|rerout|divert))\b/i,
+];
+
+const WEAK_RISK_PATTERNS = [
+  /\b(attack|missile|drone|explosion|mine|piracy|pirate|strike|war|conflict|fighting)\b/i,
+  /\b(threat(?:en|ens|ened)?|tension|sanction|naval warning|security alert)\b/i,
+  /\b(backlog|queue|congestion|delay|disruption|disrupted)\b/i,
+];
+
+function articleEvidence(articles: NewsArticle[]): {
+  strongOperationalCount: number;
+  weakRiskCount: number;
+} {
+  let strongOperationalCount = 0;
+  let weakRiskCount = 0;
+
+  for (const article of articles) {
+    const text = `${article.title} ${article.source}`;
+    if (STRONG_OPERATIONAL_PATTERNS.some((pattern) => pattern.test(text))) {
+      strongOperationalCount += 1;
+    }
+    if (WEAK_RISK_PATTERNS.some((pattern) => pattern.test(text))) {
+      weakRiskCount += 1;
+    }
+  }
+
+  return { strongOperationalCount, weakRiskCount };
+}
+
+function targetStateFromEvidence(
+  articleCount: number,
+  articles: NewsArticle[]
+): DisruptionState {
+  const { strongOperationalCount, weakRiskCount } = articleEvidence(articles);
+
+  if (strongOperationalCount >= 1) return "disrupted";
+  if (weakRiskCount >= 1 || articleCount >= STRESSED_THRESHOLD) return "stressed";
+  return "clean";
+}
+
 /**
  * Compute new state based on article count + current hysteresis counters.
  * Returns updated ChokepointState (does not write to KV).
@@ -21,14 +67,14 @@ export function computeNewState(
   const currentState = current.state;
   let { consecutivePollsAboveThreshold, consecutivePollsBelowClean } = current;
 
-  // Determine target state based on article count
-  let targetState: DisruptionState;
-  if (articleCount >= DISRUPTION_THRESHOLD) {
-    targetState = "disrupted";
-  } else if (articleCount >= STRESSED_THRESHOLD) {
+  // Determine target state based on operational evidence, not volume alone.
+  // A high volume of negative headlines can make a chokepoint stressed; actual
+  // disrupted status needs an operational signal such as closure, rerouting,
+  // attack-driven avoidance, seizure, or transit restrictions.
+  let targetState = targetStateFromEvidence(articleCount, articles);
+
+  if (articleCount >= DISRUPTION_THRESHOLD && targetState === "clean") {
     targetState = "stressed";
-  } else {
-    targetState = "clean";
   }
 
   // Hysteresis: consecutivePollsAboveThreshold counts polls with articleCount >= STRESSED_THRESHOLD.
