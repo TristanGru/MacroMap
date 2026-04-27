@@ -13,7 +13,7 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - name: Refresh all chokepoints in parallel
+      - name: Refresh all chokepoints
         run: |
           CHOKEPOINTS="strait-hormuz suez-canal strait-malacca bab-el-mandeb turkish-straits danish-straits cape-horn cape-good-hope strait-dover panama-canal"
           POLL_URL="${{ secrets.VERCEL_POLL_URL }}"
@@ -26,7 +26,8 @@ jobs:
 
           echo "Polling ${POLL_URL} for all chokepoints..."
 
-          # Fire all 10 refresh requests in parallel (background jobs)
+          # Run sequentially: the app uses a single KV write lock, and GDELT
+          # recommends spacing requests rather than bursting them in parallel.
           for cp in $CHOKEPOINTS; do
             curl -s -w "\n%{http_code} $cp\n" \
               -X POST \
@@ -34,11 +35,9 @@ jobs:
               "${POLL_URL}/api/refresh-chokepoint?id=${cp}" \
               --max-time 12 \
               --retry 1 \
-              --retry-delay 2 &
+              --retry-delay 2
+            sleep 1
           done
-
-          # Wait for all background jobs
-          wait
 
           echo "All chokepoints polled."
 

@@ -58,7 +58,14 @@ let _kv: KVClient | null = null;
 async function getKV(): Promise<KVClient> {
   if (_kv) return _kv;
 
-  if (process.env.NODE_ENV !== "production") {
+  const hasVercelKv =
+    Boolean(process.env.KV_REST_API_URL) &&
+    Boolean(process.env.KV_REST_API_TOKEN);
+
+  if (process.env.NODE_ENV !== "production" || !hasVercelKv) {
+    if (process.env.NODE_ENV === "production") {
+      console.warn("[kv] Vercel KV env vars missing - using ephemeral in-memory cache");
+    }
     _kv = new MemoryKV();
     return _kv;
   }
