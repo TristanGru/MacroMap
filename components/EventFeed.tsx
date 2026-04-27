@@ -359,7 +359,7 @@ export default function EventFeed({
             ))}
           </div>
 
-          <div ref={listRef} style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+          <div key={activeTab} ref={listRef} style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
             {feedItems.length === 0 ? (
               <div
                 style={{
@@ -411,18 +411,13 @@ function FeedTabButton({
   label: string;
   count: number;
   selected: boolean;
-  onClick: (event: React.MouseEvent<HTMLButtonElement> | React.PointerEvent<HTMLButtonElement>) => void;
+  onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }) {
   return (
     <button
       type="button"
       role="tab"
       aria-selected={selected}
-      onPointerDown={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        onClick(event);
-      }}
       onClick={onClick}
       style={{
         position: "relative",
