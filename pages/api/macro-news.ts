@@ -1,11 +1,16 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { kvGet, kvSet } from "@/lib/kv";
+import { fetchGoogleNews } from "@/lib/google-news";
 import type { NewsArticle } from "@/lib/types";
 
 const CACHE_KEY = "macro-map:macro-news";
 const CACHE_TTL_SEC = 15 * 60;
 const GDELT_BASE = "https://api.gdeltproject.org/api/v2/doc/doc";
 const QUERIES = ["oil", "shipping", "natural gas", "wheat", "copper"];
+const GOOGLE_QUERIES = [
+  '(oil OR Brent OR WTI OR "natural gas" OR wheat OR copper) (price OR supply OR exports OR disruption) when:1d',
+  '("shipping" OR "Red Sea" OR "Suez Canal" OR "Strait of Hormuz" OR Panama) (disruption OR freight OR reroute OR port) when:3d',
+];
 
 interface GdeltArticle {
   title: string;
@@ -44,7 +49,7 @@ async function fetchMacroQuery(query: string): Promise<NewsArticle[]> {
   });
 
   const res = await fetch(`${GDELT_BASE}?${params}`, {
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(6000),
   });
   if (!res.ok) {
     console.warn(`[macro-news] GDELT ${res.status} for ${query}`);
@@ -64,6 +69,24 @@ async function fetchMacroQuery(query: string): Promise<NewsArticle[]> {
 async function fetchMacroNews(): Promise<NewsArticle[]> {
   const seen = new Set<string>();
   const articles: NewsArticle[] = [];
+
+  for (const query of GOOGLE_QUERIES) {
+    const results = await fetchGoogleNews(query, 12);
+    for (const article of results) {
+      if (seen.has(article.url)) continue;
+      seen.add(article.url);
+      articles.push({
+        ...article,
+        relevanceScore: Math.max(article.relevanceScore, 0.75),
+      });
+    }
+  }
+
+  if (articles.length >= 12) {
+    return articles
+      .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
+      .slice(0, 30);
+  }
 
   for (const query of QUERIES) {
     try {

@@ -4,6 +4,7 @@ import { fetchAllPrices } from "@/lib/eia";
 import { fetchCommodityPrices } from "@/lib/oilprice";
 import { fetchBDI } from "@/lib/bdi";
 import { fetchMacroSignals } from "@/lib/fred";
+import { fetchYahooCommodityPrices } from "@/lib/yahoo-finance";
 import { kvGet, kvSet, KV_KEYS } from "@/lib/kv";
 import type { CommodityPrices, DisruptionStateCache, MacroSignal, PriceData } from "@/lib/types";
 
@@ -58,7 +59,10 @@ export default async function handler(
     }
 
     // Fetch fresh prices in parallel
-    const [eiaResult, commodityResult, bdiResult, macroSignals] = await Promise.all([
+    const [yahooResult, eiaResult, commodityResult, bdiResult, macroSignals] = await Promise.all([
+      fetchYahooCommodityPrices().catch(() => ({
+        brent: null, wti: null, natGas: null, wheat: null, copper: null,
+      })),
       fetchAllPrices().catch(() => ({ brent: null, wti: null })),
       fetchCommodityPrices().catch(() => ({
         brent: null, wti: null, natGas: null, wheat: null, copper: null,
@@ -69,12 +73,13 @@ export default async function handler(
     const signalById = new Map(macroSignals.map((s) => [s.id, s]));
 
     const freshPrices: CommodityPrices = {
-      // Prefer EIA for Brent/WTI (30-day history), fall back to Oil Price API
-      brent: eiaResult.brent ?? commodityResult.brent,
-      wti: eiaResult.wti ?? commodityResult.wti,
-      natGas: commodityResult.natGas ?? signalToPriceData(signalById.get("DHHNGSP")),
-      wheat: commodityResult.wheat ?? signalToPriceData(signalById.get("PWHEAMTUSDM")),
-      copper: commodityResult.copper ?? signalToPriceData(signalById.get("PCOPPUSDM")),
+      // Prefer live futures for the visible "now" values. EIA/FRED remain
+      // official fallbacks when the market endpoint is unavailable.
+      brent: yahooResult.brent ?? eiaResult.brent ?? commodityResult.brent,
+      wti: yahooResult.wti ?? eiaResult.wti ?? commodityResult.wti,
+      natGas: yahooResult.natGas ?? commodityResult.natGas ?? signalToPriceData(signalById.get("DHHNGSP")),
+      wheat: yahooResult.wheat ?? commodityResult.wheat ?? signalToPriceData(signalById.get("PWHEAMTUSDM")),
+      copper: yahooResult.copper ?? commodityResult.copper ?? signalToPriceData(signalById.get("PCOPPUSDM")),
       bdi: bdiResult,
     };
 

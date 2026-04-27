@@ -1,6 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { kvGet } from "@/lib/kv";
+import { kvGet, kvSet } from "@/lib/kv";
+import { fetchConflictNewsEvents } from "@/lib/conflict-news";
 import type { ConflictEventsCache } from "@/lib/types";
+
+const CACHE_KEY = "conflict-events";
+const CACHE_TTL_SEC = 30 * 60;
 
 export default async function handler(
   req: NextApiRequest,
@@ -12,11 +16,23 @@ export default async function handler(
 
   let cache: ConflictEventsCache;
   try {
-    const raw = await kvGet<ConflictEventsCache>("conflict-events");
+    const raw = await kvGet<ConflictEventsCache>(CACHE_KEY);
     cache = raw ?? { events: [], fetchedAt: new Date().toISOString() };
   } catch (err) {
     console.error("[conflict-events] KV read error:", err);
     cache = { events: [], fetchedAt: new Date().toISOString() };
+  }
+
+  if (cache.events.length === 0) {
+    try {
+      const fallbackEvents = await fetchConflictNewsEvents();
+      if (fallbackEvents.length > 0) {
+        cache = { events: fallbackEvents, fetchedAt: new Date().toISOString() };
+        await kvSet(CACHE_KEY, cache, { ex: CACHE_TTL_SEC });
+      }
+    } catch (err) {
+      console.error("[conflict-events] Fallback fetch error:", err);
+    }
   }
 
   res.setHeader("Content-Type", "application/json");
