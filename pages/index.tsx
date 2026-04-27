@@ -30,22 +30,24 @@ const ALL_RESOURCE_TYPES: ResourceType[] = [
 ];
 
 const ALL_ROUTE_STATUSES: RouteStatus[] = ["primary", "diversion", "planned", "historical"];
+const DEFAULT_RESOURCE_TYPES: ResourceType[] = ["oil"];
+const DEFAULT_ROUTE_STATUSES: RouteStatus[] = ["primary"];
 
 function parseFilterParam(param: string | undefined): ResourceType[] {
-  if (!param) return ALL_RESOURCE_TYPES;
+  if (!param) return DEFAULT_RESOURCE_TYPES;
   if (param.trim() === "") return [];
   const types = param.split(",").filter((t): t is ResourceType =>
     ALL_RESOURCE_TYPES.includes(t as ResourceType)
   );
-  return types.length > 0 ? types : ALL_RESOURCE_TYPES;
+  return types.length > 0 ? types : DEFAULT_RESOURCE_TYPES;
 }
 
 function parseStatusParam(param: string | undefined): RouteStatus[] {
-  if (!param) return ALL_ROUTE_STATUSES;
+  if (!param) return DEFAULT_ROUTE_STATUSES;
   const statuses = param.split(",").filter((s): s is RouteStatus =>
     ALL_ROUTE_STATUSES.includes(s as RouteStatus)
   );
-  return statuses.length > 0 ? statuses : ALL_ROUTE_STATUSES;
+  return statuses.length > 0 ? statuses : DEFAULT_ROUTE_STATUSES;
 }
 
 function parseFocusParam(param: string | undefined): RouteFocusTarget | null {
@@ -72,8 +74,8 @@ export default function Home() {
   const [cache, setCache] = useState<DisruptionStateCache | null>(null);
   const [selectedChokepoint, setSelectedChokepoint] = useState<Chokepoint | null>(null);
   const [routeFocus, setRouteFocus] = useState<RouteFocusTarget | null>(null);
-  const [activeFilters, setActiveFilters] = useState<ResourceType[]>(ALL_RESOURCE_TYPES);
-  const [activeRouteStatuses, setActiveRouteStatuses] = useState<RouteStatus[]>(ALL_ROUTE_STATUSES);
+  const [activeFilters, setActiveFilters] = useState<ResourceType[]>(DEFAULT_RESOURCE_TYPES);
+  const [activeRouteStatuses, setActiveRouteStatuses] = useState<RouteStatus[]>(DEFAULT_ROUTE_STATUSES);
   const [toastsShown, setToastsShown] = useState(false);
   const [conflictEvents, setConflictEvents] = useState<ConflictEvent[]>([]);
   const [disasterEvents, setDisasterEvents] = useState<DisasterEvent[]>([]);
