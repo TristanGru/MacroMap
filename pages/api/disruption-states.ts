@@ -8,9 +8,39 @@ import {
 import type { DisruptionStateCache } from "@/lib/types";
 import { emptyCache } from "@/lib/types";
 import { kvSet, KV_KEYS } from "@/lib/kv";
+import { CHOKEPOINTS } from "@/data/chokepoints";
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function ensureCompleteCache(cache: DisruptionStateCache): DisruptionStateCache {
+  let changed = false;
+  const chokepoints = { ...cache.chokepoints };
+
+  for (const cp of CHOKEPOINTS) {
+    const current = chokepoints[cp.id];
+    if (!current) {
+      changed = true;
+      chokepoints[cp.id] = {
+        ...initialChokepointState(cp.id),
+        state: "clean",
+        consecutivePollsBelowClean: 1,
+      };
+      continue;
+    }
+
+    if (current.state === "unknown" && current.articleCount === 0) {
+      changed = true;
+      chokepoints[cp.id] = {
+        ...current,
+        state: "clean",
+        consecutivePollsBelowClean: Math.max(current.consecutivePollsBelowClean, 1),
+      };
+    }
+  }
+
+  return changed ? { ...cache, chokepoints } : cache;
 }
 
 export default async function handler(
@@ -24,7 +54,6 @@ export default async function handler(
 
   try {
     let cache = await readCache();
-
     const useFixtures = process.env.NEXT_PUBLIC_USE_GDELT_FIXTURES === "true";
     const hasNoData = Object.keys(cache.chokepoints).length === 0;
     if (hasNoData && useFixtures) {
@@ -44,15 +73,19 @@ export default async function handler(
       cache = seeded;
     }
 
+    const completedCache = ensureCompleteCache(cache);
+    if (completedCache !== cache) {
+      cache = { ...completedCache, fetchedAt: new Date().toISOString() };
+      await kvSet(KV_KEYS.STATE, cache);
+    }
+
     res.status(200).json(cache);
 
-    if (isCacheStale(cache)) {
+    if (hasNoData || isCacheStale(cache)) {
       const baseUrl = getBaseUrl(req);
       const cronSecret = process.env.CRON_SECRET;
 
       if (cronSecret && baseUrl) {
-        const { CHOKEPOINTS } = await import("@/data/chokepoints");
-
         void (async () => {
           for (const cp of CHOKEPOINTS) {
             try {

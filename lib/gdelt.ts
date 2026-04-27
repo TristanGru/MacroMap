@@ -1,6 +1,7 @@
 import type { NewsArticle } from "@/lib/types";
 import { GDELT_FIXTURES } from "@/lib/gdelt.fixtures";
 import { CHOKEPOINT_MAP } from "@/data/chokepoints";
+import { fetchGoogleNews } from "@/lib/google-news";
 
 interface GdeltArticle {
   title: string;
@@ -42,6 +43,10 @@ function fallbackQuery(name: string): string {
   if (name === "Danish Straits") return "Great Belt";
   if (name === "Bab el-Mandeb") return "Bab el Mandeb";
   return name;
+}
+
+function newsFallbackQuery(name: string): string {
+  return `"${name}" shipping OR tanker OR vessel OR transit OR disruption when:7d`;
 }
 
 function buildUrl(query: string): string {
@@ -125,7 +130,7 @@ export async function queryGdelt(chokepointId: string): Promise<{
     raw = await fetchGdeltArticles(buildUrl(fallbackQuery(cp.name)), chokepointId);
   }
 
-  const articles: NewsArticle[] = raw.slice(0, 5).map((a) => ({
+  let articles: NewsArticle[] = raw.slice(0, 5).map((a) => ({
     title: a.title || "Untitled",
     url: a.url,
     source: a.domain || "Unknown",
@@ -133,7 +138,11 @@ export async function queryGdelt(chokepointId: string): Promise<{
     relevanceScore: 0.7,
   }));
 
-  return { articles, articleCount: raw.length };
+  if (articles.length === 0) {
+    articles = await fetchGoogleNews(newsFallbackQuery(cp.name), 5);
+  }
+
+  return { articles, articleCount: Math.max(raw.length, articles.length) };
 }
 
 export async function queryAllChokepoints(): Promise<

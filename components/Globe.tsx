@@ -155,6 +155,8 @@ interface ChokepointPoint {
   _kind: "chokepoint";
   lat: number;
   lng: number;
+  renderLat: number;
+  renderLng: number;
   id: string;
   name: string;
   state: DisruptionState;
@@ -165,6 +167,8 @@ interface PortPoint {
   _kind: "port";
   lat: number;
   lng: number;
+  renderLat: number;
+  renderLng: number;
   id: string;
   name: string;
   portType: "origin" | "destination" | "hub";
@@ -188,6 +192,24 @@ const PORT_COLORS = {
   destination: "#60a5fa",
   hub: "#14b8a6",
 } as const;
+
+function displayOffset(id: string, amount: number): { lat: number; lng: number } {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  const angle = (hash % 360) * (Math.PI / 180);
+  return {
+    lat: Math.sin(angle) * amount,
+    lng: Math.cos(angle) * amount,
+  };
+}
+
+function isNearAnyChokepoint(point: { lat: number; lng: number }): boolean {
+  return CHOKEPOINTS.some((cp) => {
+    const lat = cp.coordinates[1];
+    const lng = cp.coordinates[0];
+    return angularDistanceSq(point, { lat, lng }) < 0.08;
+  });
+}
 
 // ── Disaster icon factory ────────────────────────────────────────────────────
 
@@ -322,6 +344,8 @@ export default function GlobeComponent({
   });
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const mousePos = useRef({ x: 0, y: 0 });
+  const hoveredPointRef = useRef<GlobePoint | null>(null);
+  const clearTooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Track window size
   useEffect(() => {
@@ -338,6 +362,12 @@ export default function GlobeComponent({
     };
     window.addEventListener("mousemove", handleMove);
     return () => window.removeEventListener("mousemove", handleMove);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (clearTooltipTimer.current) clearTimeout(clearTooltipTimer.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -477,6 +507,8 @@ export default function GlobeComponent({
       _kind: "chokepoint" as const,
       lat: cp.coordinates[1],
       lng: cp.coordinates[0],
+      renderLat: cp.coordinates[1],
+      renderLng: cp.coordinates[0],
       id: cp.id,
       name: cp.name,
       state: cache?.chokepoints[cp.id]?.state ?? "unknown",
@@ -492,16 +524,25 @@ export default function GlobeComponent({
         activeFilters.length > 0 &&
         p.resourceTypes.some((r) => activeFilters.includes(r))
       )
-      .map((p) => ({
-        _kind: "port" as const,
-        lat: p.coordinates[1],
-        lng: p.coordinates[0],
-        id: p.id,
-        name: p.name,
-        portType: p.portType,
-        resourceTypes: p.resourceTypes,
-        description: p.description,
-      }));
+      .map((p) => {
+        const lat = p.coordinates[1];
+        const lng = p.coordinates[0];
+        const offset = isNearAnyChokepoint({ lat, lng })
+          ? displayOffset(p.id, 0.16)
+          : { lat: 0, lng: 0 };
+        return {
+          _kind: "port" as const,
+          lat,
+          lng,
+          renderLat: lat + offset.lat,
+          renderLng: lng + offset.lng,
+          id: p.id,
+          name: p.name,
+          portType: p.portType,
+          resourceTypes: p.resourceTypes,
+          description: p.description,
+        };
+      });
   }, [activeFilters]);
 
   const allPoints = useMemo<GlobePoint[]>(
@@ -559,10 +600,16 @@ export default function GlobeComponent({
 
   const handlePointHover = useCallback((point: object | null) => {
     if (!point) {
-      setTooltip(null);
+      hoveredPointRef.current = null;
+      if (clearTooltipTimer.current) clearTimeout(clearTooltipTimer.current);
+      clearTooltipTimer.current = setTimeout(() => {
+        if (!hoveredPointRef.current) setTooltip(null);
+      }, 120);
       return;
     }
+    if (clearTooltipTimer.current) clearTimeout(clearTooltipTimer.current);
     const p = point as GlobePoint;
+    hoveredPointRef.current = p;
     if (p._kind === "port") {
       setTooltip({
         x: mousePos.current.x,
@@ -570,17 +617,17 @@ export default function GlobeComponent({
         content: { type: "port", point: p },
       });
     } else {
-      setTooltip({
-        x: mousePos.current.x,
-        y: mousePos.current.y,
-        content: { type: "chokepoint", point: p },
-      });
+      setTooltip(null);
     }
   }, []);
 
   const handleArcHover = useCallback((arc: object | null) => {
+    if (hoveredPointRef.current) return;
     if (!arc) {
-      setTooltip(null);
+      if (clearTooltipTimer.current) clearTimeout(clearTooltipTimer.current);
+      clearTooltipTimer.current = setTimeout(() => {
+        if (!hoveredPointRef.current) setTooltip(null);
+      }, 80);
       return;
     }
     setTooltip({
@@ -697,8 +744,8 @@ export default function GlobeComponent({
         arcLabel={() => ""}
         // Points — chokepoints + ports combined
         pointsData={allPoints}
-        pointLat={(d) => (d as GlobePoint).lat}
-        pointLng={(d) => (d as GlobePoint).lng}
+        pointLat={(d) => (d as GlobePoint).renderLat}
+        pointLng={(d) => (d as GlobePoint).renderLng}
         pointColor={(d) => {
           const p = d as GlobePoint;
           if (p._kind === "port") return PORT_COLORS[p.portType];

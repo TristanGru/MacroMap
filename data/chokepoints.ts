@@ -4,142 +4,176 @@ export const CHOKEPOINTS: Chokepoint[] = [
   {
     id: "strait-hormuz",
     name: "Strait of Hormuz",
-    coordinates: [56.45, 26.57], // [lon, lat]
+    coordinates: [56.45, 26.57],
     resourceTypes: ["oil", "lng", "gas"],
     dailyFlowMbpd: 21,
     strategicImportance: 3,
-    gdeltQuery: '"Strait of Hormuz"',
+    gdeltQuery:
+      '"Strait of Hormuz" (shipping OR tanker OR oil OR LNG OR "naval" OR transit OR closure OR disruption)',
     summary:
-      "Carries ~21 Mbpd — roughly 20% of global oil supply — between the Persian Gulf and the Gulf of Oman. Iran has repeatedly threatened closure during tensions with the US and Israel. A sustained closure would spike Brent crude by an estimated $20–40/barrel within days.",
+      "The narrow exit from the Persian Gulf is the world's most important oil chokepoint. Roughly one-fifth of global petroleum liquids and more than 20% of global LNG trade pass through this waterway, with Hormuz LNG flows coming mostly from Qatar.",
     photoPath: "/chokepoints/strait-hormuz.jpg",
     consumerImpact:
-      "If the Strait of Hormuz closes, you'd likely see gas prices at the pump rise 15–25% within 2–3 weeks. Home heating oil and airline tickets would also jump. About 1 in 5 barrels of oil on Earth passes through here.",
+      "A real Hormuz disruption would hit fuel first: crude, diesel, jet fuel, heating oil, and LNG-linked power prices. For a US consumer, the first visible effect is usually gasoline and airfare, followed by higher shipping and input costs if the outage lasts.",
   },
   {
     id: "suez-canal",
     name: "Suez Canal",
     coordinates: [32.35, 30.45],
     resourceTypes: ["oil", "container", "lng", "rare-earth", "strategic-metals"],
-    dailyFlowMbpd: 6,
+    dailyFlowMbpd: 4.9,
     strategicImportance: 3,
-    gdeltQuery: '"Suez Canal"',
+    gdeltQuery:
+      '"Suez Canal" (shipping OR vessel OR container OR tanker OR transit OR blockage OR disruption)',
     summary:
-      "The shortest maritime route between Europe and Asia, handling ~12% of global trade. Closure forces ships around the Cape of Good Hope, adding 7–10 days of transit time and significant fuel costs. The 2021 Ever Given blockage cost an estimated $9.6B per day.",
+      "Suez and Egypt's SUMED pipeline are the shortcut between the Red Sea and the Mediterranean. Oil flows through the route fell to about 4.9 Mbpd in 1H25 after Red Sea attacks pushed many ships around the Cape of Good Hope.",
     photoPath: "/chokepoints/suez-canal.jpg",
     consumerImpact:
-      "A Suez closure means the goods you buy from Asia — electronics, clothing, furniture — take 7–10 extra days to arrive and cost more to ship. That shows up as higher prices on store shelves 4–8 weeks later.",
+      "A Suez disruption tends to show up as slower deliveries and higher freight rates before it shows up on store shelves. Electronics, apparel, furniture, auto parts, and energy cargoes are the categories most exposed.",
   },
   {
     id: "strait-malacca",
     name: "Strait of Malacca",
     coordinates: [103.85, 1.25],
-    resourceTypes: ["oil", "container", "lng", "coal", "copper", "cobalt", "iron-ore", "lithium", "rare-earth", "strategic-metals"],
-    dailyFlowMbpd: 16,
+    resourceTypes: [
+      "oil",
+      "container",
+      "lng",
+      "coal",
+      "copper",
+      "cobalt",
+      "iron-ore",
+      "lithium",
+      "rare-earth",
+      "strategic-metals",
+    ],
+    dailyFlowMbpd: 23.2,
     strategicImportance: 3,
-    gdeltQuery: '"Strait of Malacca"',
+    gdeltQuery:
+      '"Strait of Malacca" (shipping OR vessel OR tanker OR container OR piracy OR congestion OR disruption)',
     summary:
-      "The world's busiest shipping lane by vessel count, carrying ~16 Mbpd of oil and a quarter of global trade between the Indian Ocean and the Pacific. China imports 80% of its oil through Malacca — Beijing calls this dependency the 'Malacca Dilemma.'",
+      "Malacca is the main maritime corridor between the Indian Ocean and the South China Sea. EIA estimates about 23.2 Mbpd of oil flows moved through it in 1H25, making it the world's largest oil transit chokepoint by volume.",
     photoPath: "/chokepoints/strait-malacca.jpg",
     consumerImpact:
-      "Malacca disruptions hit the price of almost everything made in Asia — phones, TVs, solar panels. Since China depends on it for most of its oil, a serious closure could trigger a global recession within months.",
+      "Malacca stress is broad-based: oil, LNG, chips, solar panels, phones, appliances, and battery inputs can all feel it. A serious closure would be less like one item getting expensive and more like Asia-linked supply chains slowing at once.",
   },
   {
     id: "bab-el-mandeb",
     name: "Bab-el-Mandeb",
     coordinates: [43.45, 12.6],
     resourceTypes: ["oil", "container", "lng", "grain", "fertilizer", "rare-earth", "strategic-metals"],
-    dailyFlowMbpd: 6,
+    dailyFlowMbpd: 4.2,
     strategicImportance: 2,
-    gdeltQuery: '"Bab el-Mandeb" OR "Bab-el-Mandeb" OR "Bab al-Mandeb"',
+    gdeltQuery:
+      '("Bab el-Mandeb" OR "Bab-el-Mandeb" OR "Bab al-Mandeb" OR "Red Sea") (shipping OR vessel OR tanker OR Houthi OR reroute OR attack)',
     summary:
-      "The 'Gate of Tears' connects the Red Sea to the Gulf of Aden. Houthi attacks beginning in late 2023 forced major shipping companies to reroute around Africa, adding 10+ days to Europe–Asia voyages. Controls critical flow of oil from the Persian Gulf to the Suez Canal.",
+      "Bab-el-Mandeb is the southern gate to the Red Sea and Suez route. Since Houthi attacks began in late 2023, many operators have avoided it; EIA estimates oil flows were about 4.2 Mbpd in 1H25, roughly half the 2023 level.",
     photoPath: "/chokepoints/bab-el-mandeb.jpg",
     consumerImpact:
-      "This is the strait the Houthis have been attacking since 2023. When ships avoid it, Amazon deliveries from Asia slow down and shipping costs spike — which feeds into the prices of goods at stores like Walmart and Target.",
+      "When ships avoid Bab-el-Mandeb, Europe-Asia voyages take the long route around Africa. That raises freight rates and delays imported consumer goods, while also tightening oil, refined fuel, fertilizer, and grain logistics.",
   },
   {
     id: "turkish-straits",
     name: "Turkish Straits",
     coordinates: [29.02, 41.13],
     resourceTypes: ["oil", "grain", "uranium", "fertilizer"],
-    dailyFlowMbpd: 3,
+    dailyFlowMbpd: 3.7,
     strategicImportance: 2,
-    gdeltQuery: '"Turkish Straits" OR "Bosphorus" OR "Dardanelles"',
+    gdeltQuery:
+      '("Turkish Straits" OR Bosphorus OR Dardanelles) (shipping OR tanker OR grain OR oil OR transit OR disruption)',
     summary:
-      "Controls oil flow from the Black Sea (Caspian basin, Kazakhstan, Russia) to European markets. Turkey regulates transit under the Montreux Convention. Russian-Ukraine war has disrupted grain exports through these straits, affecting global food prices.",
+      "The Bosphorus and Dardanelles connect the Black Sea to the Mediterranean. EIA estimates about 3.7 Mbpd of oil and petroleum products flowed through the Dardanelles in 1H25, mostly tied to Russia, Kazakhstan, Azerbaijan, and Black Sea trade.",
     photoPath: "/chokepoints/turkish-straits.jpg",
     consumerImpact:
-      "Ukraine and Russia together produce about 30% of the world's wheat. When this strait is disrupted, bread, pasta, and cereal prices rise globally. Countries in North Africa and the Middle East that depend on Black Sea grain are hardest hit.",
+      "Trouble here is most likely to move wheat, fertilizer, and regional energy prices. That can feed into bread, pasta, animal feed, and food inflation, especially in countries that rely on Black Sea exports.",
   },
   {
     id: "danish-straits",
     name: "Danish Straits",
     coordinates: [10.5, 57.5],
     resourceTypes: ["oil", "gas", "coal", "fertilizer"],
-    dailyFlowMbpd: 3,
+    dailyFlowMbpd: 4.9,
     strategicImportance: 2,
-    gdeltQuery: '"Danish Straits" OR "Øresund" OR "Great Belt"',
+    gdeltQuery:
+      '("Danish Straits" OR Oresund OR "Great Belt" OR Kattegat) (shipping OR tanker OR gas OR Baltic OR disruption)',
     summary:
-      "The only maritime route between the Baltic Sea and the North Sea. Critical for Russian oil and gas exports to Europe (prior to sanctions), Norwegian gas exports, and Nordic country imports. Shallow draft restrictions limit tanker size.",
+      "The Danish Straits are the sea gate between the Baltic and the North Sea. EIA estimates about 4.9 Mbpd of oil and petroleum products moved through them in 1H25, with trade patterns reshaped by Russia sanctions and Baltic-to-Asia flows.",
     photoPath: "/chokepoints/danish-straits.jpg",
     consumerImpact:
-      "Disruption here mainly affects European energy bills. Norwegian natural gas that heats homes in Germany and Denmark flows through these straits. Less relevant to the US directly, but European energy shocks ripple into global markets.",
+      "The direct US effect is limited, but European energy and industrial costs can move through this channel. If Baltic flows are restricted, the pressure is more visible in European gas, power, fertilizer, and shipping costs.",
   },
   {
     id: "cape-horn",
     name: "Cape Horn",
     coordinates: [-67.28, -55.98],
     resourceTypes: ["container", "grain", "copper"],
-    dailyFlowMbpd: 10,
+    dailyFlowMbpd: 0,
     strategicImportance: 1,
-    gdeltQuery: '"Cape Horn" shipping',
+    gdeltQuery:
+      '"Cape Horn" (shipping OR vessel OR storm OR cargo OR copper OR grain OR disruption)',
     summary:
-      "The southernmost point of South America, a critical alternative route when the Panama Canal is congested or restricted. Notorious for violent weather and unpredictable seas. Chile–Asia copper and grain trade relies on this passage when Panama is unavailable.",
+      "Cape Horn is not a normal oil chokepoint; it is the hard southern alternative when Panama is unavailable or unattractive. Its relevance rises when drought, congestion, or restrictions push Americas-Asia cargo onto longer southern routes.",
     photoPath: "/chokepoints/cape-horn.jpg",
     consumerImpact:
-      "Cape Horn is mostly a backup route — ships only use it when Panama is unavailable. If both fail, copper prices spike (affecting electronics and EV batteries) and grain deliveries slow, pushing up food prices.",
+      "Cape Horn matters most when Panama is also stressed. Then copper, grain, and container cargoes from the Americas to Asia can face longer voyages, higher fuel costs, and more weather risk.",
   },
   {
     id: "cape-good-hope",
     name: "Cape of Good Hope",
     coordinates: [18.47, -34.36],
     resourceTypes: ["oil", "container", "lng", "grain", "iron-ore", "copper", "cobalt"],
-    dailyFlowMbpd: 10,
+    dailyFlowMbpd: 9.1,
     strategicImportance: 1,
-    gdeltQuery: '"Cape of Good Hope" shipping',
+    gdeltQuery:
+      '"Cape of Good Hope" (shipping OR vessel OR reroute OR tanker OR container OR disruption)',
     summary:
-      "The primary alternative to the Suez Canal for Europe–Asia trade. Saw a major traffic surge during the 2021 Suez blockage and again in 2024 when Houthi attacks in the Red Sea forced rerouting. Adds significant cost and transit time versus the Suez route.",
+      "The Cape of Good Hope is the main escape route when Suez or the Red Sea is too risky. EIA estimates about 9.1 Mbpd of oil flows moved around the Cape in 1H25 after Red Sea rerouting raised traffic, fuel burn, and voyage times.",
     photoPath: "/chokepoints/cape-good-hope.jpg",
     consumerImpact:
-      "When the Suez Canal is blocked, ships reroute around the Cape of Good Hope — adding 10–14 days and thousands of dollars in fuel costs per voyage. Those costs eventually show up as higher prices on imported goods.",
+      "When more ships go around the Cape, the cost is time and fuel. Consumers feel it through higher freight rates, slower deliveries, and occasional price pressure on goods moving between Asia and Europe.",
   },
   {
     id: "strait-dover",
     name: "Strait of Dover",
     coordinates: [1.5, 51.12],
-    resourceTypes: ["container", "gas", "oil", "lng", "grain", "fertilizer", "rare-earth", "strategic-metals", "cobalt", "iron-ore", "copper", "lithium"],
-    dailyFlowMbpd: 10,
+    resourceTypes: [
+      "container",
+      "gas",
+      "oil",
+      "lng",
+      "grain",
+      "fertilizer",
+      "rare-earth",
+      "strategic-metals",
+      "cobalt",
+      "iron-ore",
+      "copper",
+      "lithium",
+    ],
+    dailyFlowMbpd: 0,
     strategicImportance: 2,
-    gdeltQuery: '"Strait of Dover" OR "English Channel" shipping',
+    gdeltQuery:
+      '("Strait of Dover" OR "English Channel") (shipping OR vessel OR ferry OR tanker OR congestion OR disruption)',
     summary:
-      "The world's busiest shipping lane by traffic density — over 500 vessels per day. Gateway for North Sea oil and gas exports to continental Europe, and container trade between Northern European ports and the wider Atlantic. Critical for UK–EU post-Brexit trade flows.",
+      "The Strait of Dover is one of the world's densest traffic lanes and a key approach to Northern Europe. It is not tracked in EIA's oil-chokepoint table, but it matters operationally for UK-EU ferries, Atlantic access, North Sea energy, and container hubs.",
     photoPath: "/chokepoints/strait-dover.jpg",
     consumerImpact:
-      "The English Channel connects America's biggest trading partner (the EU) with the Atlantic. A closure would delay North Sea energy to Europe and slow transatlantic container trade, affecting car parts, pharmaceuticals, and food exports.",
+      "A Dover or English Channel disruption would be felt first in Europe and the UK through ferry delays, port congestion, energy logistics, and industrial shipments. The US feels it indirectly through transatlantic trade and European price pressure.",
   },
   {
     id: "panama-canal",
     name: "Panama Canal",
     coordinates: [-79.92, 9.08],
     resourceTypes: ["container", "lng", "grain", "coal", "copper", "lithium", "rare-earth", "strategic-metals"],
-    dailyFlowMbpd: 10,
+    dailyFlowMbpd: 2.3,
     strategicImportance: 2,
-    gdeltQuery: '"Panama Canal"',
+    gdeltQuery:
+      '"Panama Canal" (shipping OR vessel OR drought OR transit OR draft OR queue OR disruption)',
     summary:
-      "Connects the Atlantic and Pacific oceans, eliminating ~15,000km from US east coast to Asia voyages. A 2023–2024 drought reduced the canal's water levels, forcing draft restrictions that cut daily transits by 30% and created a global shipping bottleneck. Critical for US LNG exports to Asia.",
+      "The Panama Canal is the shortcut between the Atlantic and Pacific. EIA estimates 2.3 Mbpd of petroleum and other liquids moved through it in FY25; its main risk is hydrological, because Gatun Lake levels drive draft limits and daily transit slots.",
     photoPath: "/chokepoints/panama-canal.jpg",
     consumerImpact:
-      "Panama is the most US-relevant chokepoint. US grain exports to Asia and LNG exports to Europe pass through here. When drought restricted it in 2023, US farmers couldn't ship corn and soybeans as fast, and Asian LNG buyers paid more for energy.",
+      "Panama is highly relevant for the US. Restrictions can slow US grain and LNG exports, raise freight costs between US coasts and Asia, and push some ships onto much longer routes around South America.",
   },
 ];
 

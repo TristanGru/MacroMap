@@ -8,6 +8,7 @@ import type {
   DisasterEvent,
   DisasterType,
   HistoricalDisruption,
+  NewsArticle,
 } from "@/lib/types";
 import ArticleRow from "./ArticleRow";
 import RiskTimeline from "./RiskTimeline";
@@ -35,7 +36,24 @@ const STATE_LABELS: Record<string, string> = {
   clean: "CLEAN",
   stressed: "STRESSED",
   disrupted: "DISRUPTED",
-  unknown: "UNKNOWN",
+  unknown: "MONITORING",
+};
+
+const RESOURCE_LABELS: Record<string, string> = {
+  oil: "Oil",
+  gas: "Gas",
+  lng: "LNG",
+  container: "Containers",
+  copper: "Copper",
+  grain: "Grain",
+  coal: "Coal",
+  lithium: "Lithium",
+  cobalt: "Cobalt",
+  "rare-earth": "Rare Earths",
+  "strategic-metals": "Strategic Metals",
+  "iron-ore": "Iron Ore",
+  uranium: "Uranium",
+  fertilizer: "Fertilizer",
 };
 
 export default function Sidebar({
@@ -50,6 +68,7 @@ export default function Sidebar({
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const prevOpenRef = useRef(false);
   const [riskTimeline, setRiskTimeline] = useState<RiskTimelineEntry[]>([]);
+  const [recentArticles, setRecentArticles] = useState<NewsArticle[]>([]);
   const [nowMs, setNowMs] = useState(0);
 
   // Focus close button when sidebar opens; restore focus on close
@@ -98,6 +117,31 @@ export default function Sidebar({
     };
   }, [chokepointId]);
 
+  useEffect(() => {
+    if (!chokepointId) {
+      queueMicrotask(() => setRecentArticles([]));
+      return;
+    }
+
+    queueMicrotask(() => setRecentArticles(state?.articles ?? []));
+
+    let cancelled = false;
+    const fetchNews = async () => {
+      try {
+        const res = await fetch(`/api/chokepoint-news?id=${encodeURIComponent(chokepointId)}`);
+        if (!res.ok) return;
+        const data: { articles?: NewsArticle[] } = await res.json();
+        if (!cancelled && data.articles) setRecentArticles(data.articles);
+      } catch {
+        // Non-fatal; keep cached articles if available.
+      }
+    };
+    fetchNews();
+    return () => {
+      cancelled = true;
+    };
+  }, [chokepointId, state?.articles]);
+
   // Nearby ACLED events for this chokepoint
   const nearbyEvents = conflictEvents
     .filter((e) => e.nearestChokepointId === chokepoint?.id)
@@ -115,6 +159,7 @@ export default function Sidebar({
 
   // Price delta since disruption
   const stateKey = state?.state ?? "unknown";
+  const visibleStateKey = stateKey === "unknown" ? "clean" : stateKey;
   const isDisrupted = stateKey === "disrupted";
   const priceDelta =
     isDisrupted && brentAtLastClean && state
@@ -157,14 +202,7 @@ export default function Sidebar({
               background: "rgba(255,255,255,0.04)",
             }}
           >
-            <img
-              src={chokepoint.photoPath}
-              alt={`Aerial view of ${chokepoint.name}`}
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = "none";
-              }}
-            />
+            <ChokepointHero chokepoint={chokepoint} />
             <button
               ref={closeButtonRef}
               onClick={onClose}
@@ -211,15 +249,40 @@ export default function Sidebar({
                   fontSize: "11px",
                   fontWeight: 500,
                   letterSpacing: "0.08em",
-                  color: `var(--color-${stateKey})`,
-                  background: `color-mix(in srgb, var(--color-${stateKey}) 15%, transparent)`,
-                  border: `1px solid color-mix(in srgb, var(--color-${stateKey}) 40%, transparent)`,
+                  color: `var(--color-${visibleStateKey})`,
+                  background: `color-mix(in srgb, var(--color-${visibleStateKey}) 15%, transparent)`,
+                  border: `1px solid color-mix(in srgb, var(--color-${visibleStateKey}) 40%, transparent)`,
                   padding: "2px 8px",
                   borderRadius: "4px",
                 }}
               >
                 {STATE_LABELS[stateKey]}
               </span>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                gap: "6px",
+                flexWrap: "wrap",
+                marginTop: "8px",
+              }}
+            >
+              {chokepoint.resourceTypes.slice(0, 4).map((resource) => (
+                <span
+                  key={resource}
+                  style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: "10px",
+                    color: "var(--color-text-muted)",
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid var(--color-border-subtle)",
+                    borderRadius: "4px",
+                    padding: "2px 6px",
+                  }}
+                >
+                  {RESOURCE_LABELS[resource] ?? resource}
+                </span>
+              ))}
             </div>
             {state && (
               <div
@@ -343,7 +406,7 @@ export default function Sidebar({
               {state === null &&
                 [0, 1, 2].map((i) => <SkeletonRow key={i} />)}
 
-              {state !== null && state.articles.length === 0 && (
+              {state !== null && recentArticles.length === 0 && (
                 <p
                   style={{
                     padding: "16px",
@@ -352,12 +415,12 @@ export default function Sidebar({
                     color: "var(--color-text-muted)",
                   }}
                 >
-                  No articles found in the last 24 hours.
+                  Checking current chokepoint headlines...
                 </p>
               )}
 
               {state !== null &&
-                state.articles.map((article, i) => (
+                recentArticles.map((article, i) => (
                   <ArticleRow
                     key={i}
                     article={article}
@@ -384,6 +447,74 @@ export default function Sidebar({
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
+
+function ChokepointHero({ chokepoint }: { chokepoint: Chokepoint }) {
+  const [imgError, setImgError] = useState(false);
+  const primary = chokepoint.resourceTypes[0] ?? "oil";
+  const label = RESOURCE_LABELS[primary] ?? primary;
+
+  if (!imgError) {
+    return (
+      <img
+        src={chokepoint.photoPath}
+        alt={`Aerial view of ${chokepoint.name}`}
+        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        onError={() => setImgError(true)}
+      />
+    );
+  }
+
+  return (
+    <div
+      aria-label={`${chokepoint.name} route image`}
+      role="img"
+      style={{
+        width: "100%",
+        height: "100%",
+        position: "relative",
+        overflow: "hidden",
+        background:
+          "linear-gradient(135deg, #07111f 0%, #102733 45%, #173b35 100%)",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background:
+            "radial-gradient(circle at 20% 30%, rgba(34,197,94,0.22), transparent 22%), radial-gradient(circle at 72% 40%, rgba(0,212,255,0.18), transparent 24%)",
+        }}
+      />
+      <svg
+        viewBox="0 0 400 160"
+        preserveAspectRatio="none"
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+      >
+        <path d="M0 112 C78 80 138 86 202 70 C275 51 326 72 400 38" fill="none" stroke="rgba(0,212,255,0.62)" strokeWidth="5" />
+        <path d="M0 126 C84 96 151 98 218 82 C288 66 330 88 400 56" fill="none" stroke="rgba(255,255,255,0.16)" strokeWidth="2" />
+        <path d="M-10 152 L92 98 L168 122 L244 76 L414 122 L414 170 L-10 170 Z" fill="rgba(6,95,70,0.42)" />
+        <path d="M-10 46 L92 62 L174 28 L246 50 L414 18 L414 -10 L-10 -10 Z" fill="rgba(120,113,108,0.26)" />
+      </svg>
+      <div
+        style={{
+          position: "absolute",
+          left: "16px",
+          bottom: "14px",
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: "11px",
+          color: "rgba(255,255,255,0.8)",
+          background: "rgba(0,0,0,0.35)",
+          border: "1px solid rgba(255,255,255,0.14)",
+          borderRadius: "4px",
+          padding: "4px 7px",
+          backdropFilter: "blur(4px)",
+        }}
+      >
+        {label} chokepoint
+      </div>
+    </div>
+  );
+}
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
