@@ -5,6 +5,10 @@ const MAJOR_FIRE_MIN_MAX_FRP = 100;
 const MAJOR_FIRE_MIN_TOTAL_FRP = 300;
 const MAJOR_FIRE_MIN_DETECTIONS = 25;
 const MAJOR_FIRE_MIN_HIGH_CONFIDENCE_DETECTIONS = 8;
+const US_FIRE_MIN_MAX_FRP = 35;
+const US_FIRE_MIN_TOTAL_FRP = 80;
+const US_FIRE_MIN_DETECTIONS = 4;
+const US_FIRE_MIN_HIGH_CONFIDENCE_DETECTIONS = 2;
 
 interface FIRMSPoint {
   latitude: string;
@@ -15,6 +19,7 @@ interface FIRMSPoint {
 }
 
 function regionFor(lat: number, lng: number): string {
+  if (lat >= 24 && lat <= 50 && lng >= -125 && lng <= -66) return "United States";
   if (lat >= 15 && lng >= -170 && lng <= -50) return "North America";
   if (lat < 15 && lat >= -60 && lng >= -90 && lng <= -30) return "South America";
   if (lat >= 35 && lng >= -15 && lng <= 45) return "Europe / Mediterranean";
@@ -26,11 +31,20 @@ function regionFor(lat: number, lng: number): string {
   return "Global";
 }
 
-function isMajorFireCluster(pts: FIRMSPoint[]): boolean {
+function isMaterialFireCluster(pts: FIRMSPoint[], region: string): boolean {
   const frps = pts.map((p) => parseFloat(p.frp) || 0);
   const maxFrp = Math.max(...frps);
   const totalFrp = frps.reduce((sum, frp) => sum + frp, 0);
   const highConfidenceCount = pts.filter((p) => p.confidence === "h").length;
+
+  if (region === "United States" || region === "North America") {
+    return (
+      maxFrp >= US_FIRE_MIN_MAX_FRP ||
+      totalFrp >= US_FIRE_MIN_TOTAL_FRP ||
+      pts.length >= US_FIRE_MIN_DETECTIONS ||
+      highConfidenceCount >= US_FIRE_MIN_HIGH_CONFIDENCE_DETECTIONS
+    );
+  }
 
   return (
     maxFrp >= MAJOR_FIRE_MIN_MAX_FRP ||
@@ -89,8 +103,8 @@ async function fetchHemisphere(
 /**
  * Fetches major active wildfire clusters from NASA FIRMS (VIIRS SNPP NRT, last 2 days).
  * The app accepts all regions in the FIRMS world query, clusters detections into
- * 2-degree cells, then only returns material clusters so tiny heat detections do
- * not flood the map or feed.
+ * 2-degree cells, then returns material clusters. The global threshold stays
+ * high to avoid noise, while North America is more permissive so US fires show.
  */
 export async function fetchWildfires(): Promise<DisasterEvent[]> {
   const mapKey = process.env.FIRMS_MAP_KEY;
@@ -125,7 +139,7 @@ export async function fetchWildfires(): Promise<DisasterEvent[]> {
 
   const events: DisasterEvent[] = [];
   for (const [cell, { pts, region }] of clusters) {
-    if (!isMajorFireCluster(pts)) continue;
+    if (!isMaterialFireCluster(pts, region)) continue;
 
     const avgLat = pts.reduce((s, p) => s + parseFloat(p.latitude), 0) / pts.length;
     const avgLng = pts.reduce((s, p) => s + parseFloat(p.longitude), 0) / pts.length;
