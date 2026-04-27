@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { queryGdelt } from "@/lib/gdelt";
 import { updateChokepointInKV, appendRiskTimeline } from "@/lib/disruption-state";
+import { getPortWatchFlowEvidence } from "@/lib/portwatch";
 import { CHOKEPOINT_MAP } from "@/data/chokepoints";
 
 interface RefreshResponse {
@@ -8,6 +9,7 @@ interface RefreshResponse {
   chokepointId?: string;
   state?: string;
   articleCount?: number;
+  observedFlow?: string;
   error?: string;
 }
 
@@ -46,6 +48,7 @@ export default async function handler(
   try {
     // Query GDELT for this chokepoint
     const { articles, articleCount } = await queryGdelt(id);
+    const observedFlow = await getPortWatchFlowEvidence(id);
 
     // Fetch og:image thumbnails for articles (only if chokepoint likely stressed/disrupted)
     let articlesWithThumbs = articles;
@@ -73,7 +76,12 @@ export default async function handler(
     }
 
     // Update KV + append risk timeline
-    const result = await updateChokepointInKV(id, articleCount, articlesWithThumbs);
+    const result = await updateChokepointInKV(
+      id,
+      articleCount,
+      articlesWithThumbs,
+      observedFlow
+    );
     // Fire-and-forget (non-blocking)
     appendRiskTimeline(id, result.newState).catch(() => {});
 
@@ -87,6 +95,7 @@ export default async function handler(
       chokepointId: id,
       state: result.newState,
       articleCount,
+      observedFlow: observedFlow?.summary,
       error: result.error,
     });
   } catch (err) {

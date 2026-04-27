@@ -18,6 +18,7 @@ import { CHOKEPOINTS } from "@/data/chokepoints";
 import { ROUTES } from "@/data/routes";
 import { PORTS } from "@/data/ports";
 import { normalizeDisasterEvents } from "@/lib/disaster-coordinates";
+import { isMacroRelevantWildfire } from "@/lib/agriculture-regions";
 import countryBorders from "@/data/country-borders.json";
 
 // ── Color maps ──────────────────────────────────────────────────────────────
@@ -557,7 +558,13 @@ export default function GlobeComponent({
   // ── Derive ring data from conflict events ────────────────────────────────
 
   const ringData = useMemo(() => {
-    return conflictEvents.filter((e) => e.nearestChokepointId !== null);
+    return conflictEvents.filter(
+      (e) =>
+        e.nearestChokepointId !== null &&
+        e.distanceKm !== null &&
+        e.distanceKm <= 100 &&
+        e.fatalities > 0
+    );
   }, [conflictEvents]);
 
   // ── Label data: major events (fatalities > 10 or < 200km from CP) ────────
@@ -572,7 +579,9 @@ export default function GlobeComponent({
 
   const filteredDisasterEvents = useMemo(() => {
     return normalizeDisasterEvents(disasterEvents).filter((e) => {
-      if (e.type === "wildfire") return e.severity === "warning" || e.severity === "alert";
+      if (e.type === "wildfire") {
+        return e.severity === "warning" || e.severity === "alert" || isMacroRelevantWildfire(e);
+      }
       return true;
     });
   }, [disasterEvents]);
@@ -610,15 +619,7 @@ export default function GlobeComponent({
     if (clearTooltipTimer.current) clearTimeout(clearTooltipTimer.current);
     const p = point as GlobePoint;
     hoveredPointRef.current = p;
-    if (p._kind === "port") {
-      setTooltip({
-        x: mousePos.current.x,
-        y: mousePos.current.y,
-        content: { type: "port", point: p },
-      });
-    } else {
-      setTooltip(null);
-    }
+    setTooltip(null);
   }, []);
 
   const handleArcHover = useCallback((arc: object | null) => {
@@ -650,11 +651,7 @@ export default function GlobeComponent({
           { lat: p.lat, lng: p.lng, altitude: 1.5 },
           1200
         );
-        setTooltip({
-          x: mousePos.current.x,
-          y: mousePos.current.y,
-          content: { type: "port", point: p },
-        });
+        setTooltip(null);
         return;
       }
 

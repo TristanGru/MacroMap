@@ -96,12 +96,44 @@ export interface NewsArticle {
   thumbnailUrl?: string; // og:image, fetched server-side
 }
 
+export interface PortWatchFlowEvidence {
+  source: "IMF PortWatch";
+  portWatchId: string;
+  portWatchName: string;
+  state: Exclude<DisruptionState, "unknown">;
+  latestDate: string;
+  latestTotal: number;
+  latestTankers: number;
+  baselineTotal: number;
+  baselineTankers: number;
+  ratio: number;
+  summary: string;
+}
+
+export interface DisruptionConfidence {
+  level: "low" | "medium" | "high";
+  drivers: string[];
+}
+
+export interface PortWatchRerouteSignal {
+  id: string;
+  state: "stressed" | "disrupted";
+  title: string;
+  summary: string;
+  impactedChokepointIds: string[];
+  diversionChokepointIds: string[];
+  confidence: DisruptionConfidence["level"];
+}
+
 export interface ChokepointState {
   chokepointId: string;
   state: DisruptionState;
   articleCount: number;
   /** Top 5, most recent first */
   articles: NewsArticle[];
+  /** Observed AIS transit evidence from IMF PortWatch, when available */
+  observedFlow?: PortWatchFlowEvidence | null;
+  confidence?: DisruptionConfidence;
   lastUpdatedAt: string; // ISO 8601
   consecutivePollsAboveThreshold: number;
   consecutivePollsBelowClean: number;
@@ -130,6 +162,8 @@ export interface DisruptionStateCache {
   previousStates: Record<string, DisruptionState>;
   /** Brent price at last clean state, per chokepoint — for causality annotation */
   brentAtLastClean: Record<string, { price: number; date: string } | null>;
+  /** Observed rerouting patterns inferred from IMF PortWatch flow shifts */
+  portWatchReroutes?: PortWatchRerouteSignal[];
 }
 
 /** Empty cache returned on KV error */
@@ -140,6 +174,7 @@ export function emptyCache(): DisruptionStateCache {
     fetchedAt: new Date().toISOString(),
     previousStates: {},
     brentAtLastClean: {},
+    portWatchReroutes: [],
   };
 }
 

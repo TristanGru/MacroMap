@@ -53,6 +53,32 @@ const ROLE_COLORS: Record<Port["portType"], string> = {
   hub: "#14b8a6",
 };
 
+const ROLE_CONTEXT: Record<Port["portType"], string> = {
+  origin:
+    "Export origins are upstream supply nodes. Disruption here usually shows up first as fewer cargoes leaving the region, higher replacement costs, or pressure on buyers that depend on a specific grade or basin.",
+  destination:
+    "Import destinations are demand-side gateways. Disruption here can delay deliveries, raise local inventories or demurrage costs, and expose how dependent a market is on a particular route.",
+  hub:
+    "Trading hubs concentrate transshipment, storage, refining, finance, or inland logistics. Stress here can ripple through multiple routes even when the underlying commodity supply is still available.",
+};
+
+const RESOURCE_CONTEXT: Record<ResourceType, string> = {
+  oil: "Crude and refined-product flows are sensitive to sanctions, tanker insurance, refinery demand, and chokepoint closures.",
+  gas: "Pipeline gas exposure depends on field output, compressor stations, border interconnectors, storage, and political transit risk.",
+  lng: "LNG exposure depends on liquefaction trains, regas terminals, vessel availability, and spot cargo redirection between Europe and Asia.",
+  container: "Container flows proxy finished goods, machinery, retail inventory, and manufacturing inputs moving through global liner networks.",
+  copper: "Copper routes matter for power grids, construction, EVs, and electronics; concentrate logistics can be bottlenecked by rail and port access.",
+  grain: "Grain routes are tied to food inflation, livestock feed costs, crop calendars, river levels, and inspection or export-control policy.",
+  coal: "Coal routes affect power generation and steelmaking, with Asian demand, rail reliability, and weather disruptions often driving stress.",
+  lithium: "Lithium flows link mines and brine operations to battery chemical conversion, cathode production, and EV supply chains.",
+  cobalt: "Cobalt routes are concentrated around Central African mining and Asian refining, making corridor reliability unusually important.",
+  "rare-earth": "Rare earth exposure is less about bulk tonnage and more about separation capacity, magnet inputs, and export-control risk.",
+  "strategic-metals": "Strategic metals support semiconductors, aerospace, defense, and high-end manufacturing, so small logistics shocks can matter.",
+  "iron-ore": "Iron ore flows are bulk-heavy and steel-cycle sensitive, with China demand and Australian or Brazilian export reliability setting tone.",
+  uranium: "Uranium logistics are small by volume but high consequence for nuclear fuel security, conversion, enrichment, and utility contracting.",
+  fertilizer: "Fertilizer flows matter for planting costs and food supply, especially when ammonia, urea, potash, or phosphate trade is interrupted.",
+};
+
 function coordKey(coord: [number, number]): string {
   return `${coord[0].toFixed(2)},${coord[1].toFixed(2)}`;
 }
@@ -74,6 +100,14 @@ export default function PortPanel({ port, onClose }: PortPanelProps) {
       return counts;
     }, {});
   }, [routes]);
+  const profileHighlights = useMemo(() => {
+    if (!port) return [];
+    return port.resourceTypes.slice(0, 4).map((resource) => ({
+      label: RESOURCE_LABELS[resource],
+      color: RESOURCE_COLORS[resource],
+      body: RESOURCE_CONTEXT[resource],
+    }));
+  }, [port]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -209,6 +243,42 @@ export default function PortPanel({ port, onClose }: PortPanelProps) {
                   marginBottom: "8px",
                 }}
               >
+                Role in the network
+              </div>
+              <div
+                style={{
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: "8px",
+                  background: "rgba(255,255,255,0.04)",
+                  padding: "10px",
+                }}
+              >
+                <p
+                  style={{
+                    fontFamily: "'IBM Plex Sans', sans-serif",
+                    fontSize: "12px",
+                    color: "rgba(255,255,255,0.72)",
+                    lineHeight: 1.55,
+                    margin: 0,
+                  }}
+                >
+                  {ROLE_CONTEXT[port.portType]}
+                </p>
+              </div>
+            </section>
+
+            <section style={{ marginBottom: "18px" }}>
+              <div
+                style={{
+                  fontFamily: "'IBM Plex Sans', sans-serif",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  color: "rgba(255,255,255,0.45)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.07em",
+                  marginBottom: "8px",
+                }}
+              >
                 Macro materials
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
@@ -228,6 +298,57 @@ export default function PortPanel({ port, onClose }: PortPanelProps) {
                   >
                     {RESOURCE_LABELS[resource]}
                   </span>
+                ))}
+              </div>
+            </section>
+
+            <section style={{ marginBottom: "18px" }}>
+              <div
+                style={{
+                  fontFamily: "'IBM Plex Sans', sans-serif",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  color: "rgba(255,255,255,0.45)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.07em",
+                  marginBottom: "8px",
+                }}
+              >
+                What to watch
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "7px" }}>
+                {profileHighlights.map((item) => (
+                  <div
+                    key={item.label}
+                    style={{
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      borderRadius: "8px",
+                      background: "rgba(255,255,255,0.04)",
+                      padding: "9px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        color: item.color,
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontSize: "10px",
+                        textTransform: "uppercase",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      {item.label}
+                    </div>
+                    <div
+                      style={{
+                        color: "rgba(255,255,255,0.7)",
+                        fontFamily: "'IBM Plex Sans', sans-serif",
+                        fontSize: "12px",
+                        lineHeight: 1.45,
+                      }}
+                    >
+                      {item.body}
+                    </div>
+                  </div>
                 ))}
               </div>
             </section>

@@ -9,6 +9,7 @@ import type {
   DisasterType,
   HistoricalDisruption,
   NewsArticle,
+  PortWatchRerouteSignal,
 } from "@/lib/types";
 import ArticleRow from "./ArticleRow";
 import RiskTimeline from "./RiskTimeline";
@@ -30,6 +31,7 @@ interface SidebarProps {
   conflictEvents?: ConflictEvent[];
   disasterEvents?: DisasterEvent[];
   brentAtLastClean?: { price: number; date: string } | null;
+  portWatchReroutes?: PortWatchRerouteSignal[];
 }
 
 const STATE_LABELS: Record<string, string> = {
@@ -63,6 +65,7 @@ export default function Sidebar({
   conflictEvents = [],
   disasterEvents = [],
   brentAtLastClean,
+  portWatchReroutes = [],
 }: SidebarProps) {
   const isOpen = chokepoint !== null;
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -155,6 +158,13 @@ export default function Sidebar({
   // Historical disruptions for this chokepoint
   const historicalDisruptions = chokepoint
     ? getDisruptionsForChokepoint(chokepoint.id)
+    : [];
+  const relatedReroutes = chokepoint
+    ? portWatchReroutes.filter(
+        (signal) =>
+          signal.impactedChokepointIds.includes(chokepoint.id) ||
+          signal.diversionChokepointIds.includes(chokepoint.id)
+      )
     : [];
 
   // Price delta since disruption
@@ -295,6 +305,18 @@ export default function Sidebar({
               >
                 {state.articleCount} articles · updated{" "}
                 {new Date(state.lastUpdatedAt).toLocaleTimeString()}
+                {state.observedFlow && (
+                  <>
+                    <br />
+                    PortWatch AIS: {state.observedFlow.summary}
+                  </>
+                )}
+                {state.confidence && (
+                  <>
+                    <br />
+                    Confidence: {state.confidence.level.toUpperCase()}
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -366,6 +388,54 @@ export default function Sidebar({
                 >
                   {chokepoint.consumerImpact}
                 </p>
+              </div>
+            )}
+
+            {/* Nearby disaster events */}
+            {relatedReroutes.length > 0 && (
+              <div>
+                <SectionLabel>Observed Rerouting</SectionLabel>
+                {relatedReroutes.map((signal) => (
+                  <div
+                    key={signal.id}
+                    style={{
+                      margin: "0 16px 10px",
+                      padding: "12px",
+                      borderRadius: "8px",
+                      background:
+                        signal.state === "disrupted"
+                          ? "rgba(239, 68, 68, 0.08)"
+                          : "rgba(245, 158, 11, 0.08)",
+                      border: `1px solid ${
+                        signal.state === "disrupted"
+                          ? "rgba(239, 68, 68, 0.24)"
+                          : "rgba(245, 158, 11, 0.24)"
+                      }`,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontFamily: "'IBM Plex Sans', sans-serif",
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        color: "var(--color-text)",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      {signal.title}
+                    </div>
+                    <div
+                      style={{
+                        fontFamily: "'IBM Plex Sans', sans-serif",
+                        fontSize: "12px",
+                        lineHeight: 1.5,
+                        color: "var(--color-text-muted)",
+                      }}
+                    >
+                      {signal.summary}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 

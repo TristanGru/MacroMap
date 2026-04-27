@@ -46,7 +46,20 @@ function fallbackQuery(name: string): string {
 }
 
 function newsFallbackQuery(name: string): string {
-  return `"${name}" shipping OR tanker OR vessel OR transit OR disruption when:7d`;
+  const aliases: Record<string, string> = {
+    "Strait of Hormuz": '"Strait of Hormuz" OR Hormuz',
+    "Bab-el-Mandeb": '"Bab el-Mandeb" OR "Bab-el-Mandeb" OR "Bab al-Mandeb" OR "Red Sea"',
+    "Suez Canal": '"Suez Canal" OR Suez',
+    "Strait of Malacca": '"Strait of Malacca" OR Malacca',
+    "Turkish Straits": '"Turkish Straits" OR Bosphorus OR Dardanelles',
+    "Danish Straits": '"Danish Straits" OR Oresund OR "Great Belt"',
+    "Cape of Good Hope": '"Cape of Good Hope"',
+    "Strait of Dover": '"Strait of Dover" OR "English Channel"',
+    "Panama Canal": '"Panama Canal"',
+    "Cape Horn": '"Cape Horn"',
+  };
+  const target = aliases[name] ?? `"${name}"`;
+  return `(${target}) (shipping OR tanker OR vessel OR transit OR closed OR closure OR restricted OR reroute OR disruption OR attack) when:14d`;
 }
 
 function buildUrl(query: string): string {

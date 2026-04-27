@@ -416,6 +416,7 @@ export default function Home() {
               ? (cache?.brentAtLastClean?.[selectedChokepoint.id] ?? null)
               : null
           }
+          portWatchReroutes={cache?.portWatchReroutes ?? []}
         />
       )}
 

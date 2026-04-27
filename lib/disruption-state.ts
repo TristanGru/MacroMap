@@ -1,4 +1,12 @@
-import type { ChokepointState, DisruptionState, DisruptionStateCache, RiskTimelineEntry, NewsArticle } from "@/lib/types";
+import type {
+  ChokepointState,
+  DisruptionConfidence,
+  DisruptionState,
+  DisruptionStateCache,
+  NewsArticle,
+  PortWatchFlowEvidence,
+  RiskTimelineEntry,
+} from "@/lib/types";
 import { kvGet, kvSet, kvDel, KV_KEYS } from "@/lib/kv";
 import { emptyCache } from "@/lib/types";
 
@@ -11,17 +19,19 @@ const HYSTERESIS_COUNT = 3; // N-of-3 consecutive polls required to change state
 
 const STRONG_OPERATIONAL_PATTERNS = [
   /\b(blocked|closed|closure|shut(?:\s|-)?down|halted|stopped|suspended)\b/i,
-  /\b(rerout(?:e|ed|ing)|divert(?:ed|ing|sion)|avoid(?:ed|ing) route)\b/i,
-  /\b(transit restrictions?|capacity cuts?|draft restrictions?|daily transits? (?:cut|reduced))\b/i,
+  /\b(practically closed|virtually closed|commercially closed|effectively closed|near(?:ly)? shut)\b/i,
+  /\b(rerout(?:e|ed|ing)|divert(?:ed|ing|sion)|bypass(?:ed|ing)?|avoid(?:ed|ing)? (?:route|waterway|area|strait|red sea))\b/i,
+  /\b(transit restrictions?|restricted transit|capacity cuts?|draft restrictions?|daily transits? (?:cut|reduced)|near-zero (?:traffic|transits?))\b/i,
   /\b(seized|hijacked|grounded|ran aground|collision|struck by|hit by)\b/i,
-  /\b(port closed|canal closed|strait closed|shipping lane closed)\b/i,
-  /\b(attacks? (?:force|forced|halt|halted|stop|stopped|rerout|divert))\b/i,
+  /\b(port closed|canal closed|strait closed|waterway closed|shipping lane closed)\b/i,
+  /\b(attacks? (?:force|forced|halt|halted|stop|stopped|rerout|rerouted|divert|diverted))\b/i,
+  /\b(carriers? (?:suspend|suspended|pause|paused)|service suspensions?|naval blockade|blockade)\b/i,
 ];
 
 const WEAK_RISK_PATTERNS = [
   /\b(attack|missile|drone|explosion|mine|piracy|pirate|strike|war|conflict|fighting)\b/i,
   /\b(threat(?:en|ens|ened)?|tension|sanction|naval warning|security alert)\b/i,
-  /\b(backlog|queue|congestion|delay|disruption|disrupted)\b/i,
+  /\b(backlog|queue|congestion|delay|disruption|disrupted|restricted|unsafe|warning)\b/i,
 ];
 
 function articleEvidence(articles: NewsArticle[]): {
@@ -46,13 +56,53 @@ function articleEvidence(articles: NewsArticle[]): {
 
 function targetStateFromEvidence(
   articleCount: number,
-  articles: NewsArticle[]
+  articles: NewsArticle[],
+  observedFlow?: PortWatchFlowEvidence | null
 ): DisruptionState {
   const { strongOperationalCount, weakRiskCount } = articleEvidence(articles);
 
+  if (observedFlow?.state === "disrupted") return "disrupted";
   if (strongOperationalCount >= 1) return "disrupted";
+  if (observedFlow?.state === "stressed") return "stressed";
   if (weakRiskCount >= 1 || articleCount >= STRESSED_THRESHOLD) return "stressed";
   return "clean";
+}
+
+function confidenceFromEvidence(
+  articleCount: number,
+  articles: NewsArticle[],
+  observedFlow?: PortWatchFlowEvidence | null
+): DisruptionConfidence {
+  const { strongOperationalCount, weakRiskCount } = articleEvidence(articles);
+  const drivers: string[] = [];
+
+  if (observedFlow) {
+    drivers.push(observedFlow.summary);
+  }
+  if (strongOperationalCount > 0) {
+    drivers.push(`${strongOperationalCount} headline(s) with operational disruption language`);
+  } else if (weakRiskCount > 0) {
+    drivers.push(`${weakRiskCount} headline(s) with risk language`);
+  } else if (articleCount > 0) {
+    drivers.push(`${articleCount} current headline(s) monitored`);
+  }
+
+  if (observedFlow?.state === "disrupted") {
+    return { level: "high", drivers };
+  }
+  if (strongOperationalCount > 0 && observedFlow?.state === "stressed") {
+    return { level: "high", drivers };
+  }
+  if (observedFlow?.state === "stressed" || strongOperationalCount > 0) {
+    return { level: "medium", drivers };
+  }
+  if (weakRiskCount > 0 || articleCount >= STRESSED_THRESHOLD) {
+    return { level: "low", drivers };
+  }
+  if (observedFlow?.state === "clean") {
+    return { level: "medium", drivers };
+  }
+  return { level: "low", drivers };
 }
 
 /**
@@ -62,7 +112,8 @@ function targetStateFromEvidence(
 export function computeNewState(
   current: ChokepointState,
   articleCount: number,
-  articles: NewsArticle[]
+  articles: NewsArticle[],
+  observedFlow?: PortWatchFlowEvidence | null
 ): ChokepointState {
   const currentState = current.state;
   let { consecutivePollsAboveThreshold, consecutivePollsBelowClean } = current;
@@ -71,7 +122,8 @@ export function computeNewState(
   // A high volume of negative headlines can make a chokepoint stressed; actual
   // disrupted status needs an operational signal such as closure, rerouting,
   // attack-driven avoidance, seizure, or transit restrictions.
-  let targetState = targetStateFromEvidence(articleCount, articles);
+  let targetState = targetStateFromEvidence(articleCount, articles, observedFlow);
+  const confidence = confidenceFromEvidence(articleCount, articles, observedFlow);
 
   if (articleCount >= DISRUPTION_THRESHOLD && targetState === "clean") {
     targetState = "stressed";
@@ -89,16 +141,22 @@ export function computeNewState(
       state: targetState,
       articleCount,
       articles: articles.slice(0, 5),
+      observedFlow: observedFlow ?? null,
+      confidence,
       lastUpdatedAt: new Date().toISOString(),
       consecutivePollsAboveThreshold: targetState !== "clean" ? 1 : 0,
       consecutivePollsBelowClean: targetState === "clean" ? 1 : 0,
     };
   }
 
-  if (targetState === "disrupted" || targetState === "stressed") {
+  if (targetState === "disrupted") {
     consecutivePollsAboveThreshold += 1;
     consecutivePollsBelowClean = 0;
-    if (consecutivePollsAboveThreshold >= HYSTERESIS_COUNT) {
+    newState = "disrupted";
+  } else if (targetState === "stressed") {
+    consecutivePollsAboveThreshold += 1;
+    consecutivePollsBelowClean = 0;
+    if (observedFlow?.state === "stressed" || consecutivePollsAboveThreshold >= HYSTERESIS_COUNT) {
       // Use the most recent article count to distinguish disrupted vs stressed
       newState = targetState;
     }
@@ -116,6 +174,8 @@ export function computeNewState(
     state: newState,
     articleCount,
     articles: articles.slice(0, 5),
+    observedFlow: observedFlow ?? null,
+    confidence,
     lastUpdatedAt: new Date().toISOString(),
     consecutivePollsAboveThreshold,
     consecutivePollsBelowClean,
@@ -129,6 +189,7 @@ export function initialChokepointState(id: string): ChokepointState {
     state: "unknown",
     articleCount: 0,
     articles: [],
+    observedFlow: null,
     lastUpdatedAt: new Date().toISOString(),
     consecutivePollsAboveThreshold: 0,
     consecutivePollsBelowClean: 0,
@@ -160,7 +221,8 @@ export async function readCache(): Promise<DisruptionStateCache> {
 export async function updateChokepointInKV(
   chokepointId: string,
   articleCount: number,
-  articles: NewsArticle[]
+  articles: NewsArticle[],
+  observedFlow?: PortWatchFlowEvidence | null
 ): Promise<{ success: boolean; newState: DisruptionState; error?: string }> {
   // Acquire write lock (SET NX with 30s TTL)
   const locked = await kvSet(KV_KEYS.LOCK, "1", { ex: 30, nx: true });
@@ -175,7 +237,7 @@ export async function updateChokepointInKV(
       cache.chokepoints[chokepointId] ?? initialChokepointState(chokepointId);
 
     const prevState = current.state;
-    const updated = computeNewState(current, articleCount, articles);
+    const updated = computeNewState(current, articleCount, articles, observedFlow);
 
     // Update previousStates for toast diff
     const previousStates = { ...cache.previousStates };

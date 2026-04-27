@@ -1,23 +1,7 @@
 import React, { useState } from "react";
 import type { CommodityPrices, DisruptionStateCache, MacroSignal, DisasterEvent } from "@/lib/types";
 import { CHOKEPOINTS } from "@/data/chokepoints";
-
-// US agricultural regions (lat/lng bounding boxes) for wildfire filtering
-const US_AGRI_REGIONS = [
-  { name: "Great Plains", latMin: 30, latMax: 49, lngMin: -105, lngMax: -90 },
-  { name: "Midwest Corn Belt", latMin: 36, latMax: 47, lngMin: -97, lngMax: -80 },
-  { name: "California Central Valley", latMin: 35, latMax: 40, lngMin: -123, lngMax: -118 },
-  { name: "Pacific Northwest", latMin: 44, latMax: 49, lngMin: -124, lngMax: -116 },
-];
-
-function isNearUSAgriRegion(lat: number, lng: number): string | null {
-  for (const r of US_AGRI_REGIONS) {
-    if (lat >= r.latMin && lat <= r.latMax && lng >= r.lngMin && lng <= r.lngMax) {
-      return r.name;
-    }
-  }
-  return null;
-}
+import { isMacroRelevantWildfire, usAgriRegionFor } from "@/lib/agriculture-regions";
 
 interface MacroPanelProps {
   prices: CommodityPrices | null;
@@ -127,9 +111,12 @@ export default function MacroPanel({ prices, cache, macroSignals = [], disasterE
   const [collapsed, setCollapsed] = useState(compact);
 
   // US wildfires near agricultural regions
-  const usAgriWildfires = disasterEvents.filter(
-    (e) => e.type === "wildfire" && isNearUSAgriRegion(e.lat, e.lng) !== null
-  );
+  const usAgriWildfires = disasterEvents
+    .filter(isMacroRelevantWildfire)
+    .filter((event, index, events) => {
+      const region = usAgriRegionFor(event.lat, event.lng);
+      return events.findIndex((other) => usAgriRegionFor(other.lat, other.lng) === region) === index;
+    });
 
   // Group macro signals by category
   const agriSignals = macroSignals.filter((s) => s.category === "agriculture");
@@ -299,7 +286,7 @@ export default function MacroPanel({ prices, cache, macroSignals = [], disasterE
               {usAgriWildfires.length > 0 && (
                 <div style={{ marginTop: "6px" }}>
                   {usAgriWildfires.slice(0, 3).map((fire) => {
-                    const region = isNearUSAgriRegion(fire.lat, fire.lng);
+                    const region = usAgriRegionFor(fire.lat, fire.lng);
                     return (
                       <div key={fire.id} style={{
                         display: "flex", alignItems: "flex-start", gap: "6px",

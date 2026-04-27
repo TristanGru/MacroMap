@@ -6,7 +6,37 @@ interface DataSourcesPanelProps {
   health?: Record<string, SourceHealthState>;
 }
 
+type PanelMode = "sources" | "info" | null;
+
 const ROUTE_DATA_LAST_UPDATED = "2026-04-26";
+
+const INFO_SECTIONS = [
+  {
+    title: "What The Map Tracks",
+    body:
+      "The globe connects major commodity flows to chokepoints, ports, pipelines, rail corridors, and diversion routes. It currently covers oil, LNG and natural gas, wheat, copper, lithium, cobalt, and rare earth exposure.",
+  },
+  {
+    title: "Live Disruption Signals",
+    body:
+      "Chokepoint status combines current news, nearby conflict events, disaster feeds, and observed maritime flow from IMF PortWatch where available. Clean means no strong current operational evidence; stressed means degraded or rerouted flow; disrupted means severe restriction, closure, or near-zero observed transit.",
+  },
+  {
+    title: "Events Feed",
+    body:
+      "The feed separates macro news, route and rerouting signals, conflicts, and disasters so earthquakes and fires do not crowd out trade and market news. Articles and signals are connected back to nearby chokepoints when the data supports that relationship.",
+  },
+  {
+    title: "Prices And Macro",
+    body:
+      "Market cards pull commodity and macro indicators such as Brent, natural gas, wheat, copper, energy data, rates, inflation, and crop data when API keys are available. Fallbacks are marked so stale or backup data is not confused with live data.",
+  },
+  {
+    title: "How To Read It",
+    body:
+      "This is a strategic monitoring tool, not a navigation chart or trading system. Routes are simplified macro corridors, port status is evidence-weighted, and disruption labels highlight where a real-world event may matter for supply chains and markets.",
+  },
+];
 
 const SOURCES = [
   { label: "ACLED conflict events", url: "https://acleddata.com/" },
@@ -39,45 +69,83 @@ const SOURCES = [
   { label: "SADC transport corridors", url: "https://www.sadc.int/" },
 ];
 
+function statusColor(state: SourceHealthState): string {
+  if (state === "live") return "#22c55e";
+  if (state === "loading") return "#f59e0b";
+  if (state === "fallback") return "#a78bfa";
+  return "#ef4444";
+}
+
 export default function DataSourcesPanel({ health = {} }: DataSourcesPanelProps) {
   const compact = typeof window !== "undefined" && window.innerWidth <= 700;
-  const [open, setOpen] = useState(false);
+  const [panelMode, setPanelMode] = useState<PanelMode>(null);
   const healthEntries = Object.entries(health);
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        aria-expanded={open}
-        aria-label={open ? "Close data sources and route caveats" : "Open data sources and route caveats"}
+      <div
         style={{
           position: "fixed",
           right: "16px",
           left: "auto",
           top: compact ? "16px" : "auto",
           bottom: compact ? "auto" : "58px",
-          height: "34px",
-          borderRadius: "8px",
-          border: "1px solid var(--color-border)",
-          background: "rgba(10, 15, 30, 0.92)",
-          backdropFilter: "blur(12px)",
-          color: "var(--color-text)",
-          fontFamily: "'IBM Plex Sans', sans-serif",
-          fontSize: "12px",
-          fontWeight: 500,
-          cursor: "pointer",
-          zIndex: 65,
-          padding: "0 12px",
+          zIndex: 54,
+          display: "flex",
+          gap: "8px",
         }}
       >
-        Sources
-      </button>
+        <button
+          type="button"
+          onClick={() => setPanelMode((value) => value === "sources" ? null : "sources")}
+          aria-expanded={panelMode === "sources"}
+          aria-label={panelMode === "sources" ? "Close data sources and route caveats" : "Open data sources and route caveats"}
+          style={{
+            height: "34px",
+            borderRadius: "8px",
+            border: "1px solid var(--color-border)",
+            background: panelMode === "sources" ? "rgba(37, 99, 235, 0.28)" : "rgba(10, 15, 30, 0.92)",
+            backdropFilter: "blur(12px)",
+            color: "var(--color-text)",
+            fontFamily: "'IBM Plex Sans', sans-serif",
+            fontSize: "12px",
+            fontWeight: 500,
+            cursor: "pointer",
+            padding: "0 12px",
+          }}
+        >
+          Sources
+        </button>
 
-      {open && (
+        <button
+          type="button"
+          onClick={() => setPanelMode((value) => value === "info" ? null : "info")}
+          aria-expanded={panelMode === "info"}
+          aria-label={panelMode === "info" ? "Close application information" : "Read about information included in this application"}
+          title="About the information in this application"
+          style={{
+            height: "34px",
+            width: "34px",
+            borderRadius: "8px",
+            border: "1px solid var(--color-border)",
+            background: panelMode === "info" ? "rgba(37, 99, 235, 0.28)" : "rgba(10, 15, 30, 0.92)",
+            backdropFilter: "blur(12px)",
+            color: "var(--color-text)",
+            fontFamily: "'IBM Plex Sans', sans-serif",
+            fontSize: "14px",
+            fontWeight: 700,
+            cursor: "pointer",
+            padding: 0,
+          }}
+        >
+          i
+        </button>
+      </div>
+
+      {panelMode && (
         <section
           role="dialog"
-          aria-label="Data sources and caveats"
+          aria-label={panelMode === "info" ? "Application information" : "Data sources and caveats"}
           style={{
             position: "fixed",
             right: "16px",
@@ -92,7 +160,7 @@ export default function DataSourcesPanel({ health = {} }: DataSourcesPanelProps)
             background: "rgba(10, 15, 30, 0.96)",
             backdropFilter: "blur(16px)",
             boxShadow: "0 16px 40px rgba(0,0,0,0.35)",
-            zIndex: 66,
+            zIndex: 54,
             padding: "14px",
           }}
         >
@@ -114,12 +182,12 @@ export default function DataSourcesPanel({ health = {} }: DataSourcesPanelProps)
                 fontWeight: 600,
               }}
             >
-              Data Sources
+              {panelMode === "info" ? "What This Includes" : "Data Sources"}
             </h2>
             <button
               type="button"
-              onClick={() => setOpen(false)}
-              aria-label="Close data sources"
+              onClick={() => setPanelMode(null)}
+              aria-label={panelMode === "info" ? "Close application information" : "Close data sources"}
               style={{
                 border: 0,
                 background: "transparent",
@@ -128,90 +196,119 @@ export default function DataSourcesPanel({ health = {} }: DataSourcesPanelProps)
                 fontSize: "18px",
               }}
             >
-              ×
+              x
             </button>
           </div>
 
-          <p
-            style={{
-              margin: "0 0 12px",
-              color: "rgba(255,255,255,0.72)",
-              fontFamily: "'IBM Plex Sans', sans-serif",
-              fontSize: "12px",
-              lineHeight: 1.55,
-            }}
-          >
-            Routes are macro-scale approximations for analysis, not navigation charts. Land, rail,
-            pipeline, and diversion corridors are simplified to show strategic exposure and may not
-            trace every real interchange, siding, or shipping lane. Approximate routes are synthetic
-            corridor sketches based on public trade patterns, not AIS-derived tracks. Source links
-            include live feeds, public datasets, corridor authorities, and supporting references.
-          </p>
-
-          <p
-            style={{
-              margin: "0 0 12px",
-              color: "rgba(255,255,255,0.58)",
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: "10px",
-              lineHeight: 1.5,
-              textTransform: "uppercase",
-            }}
-          >
-            Route/corridor data last updated: {ROUTE_DATA_LAST_UPDATED}
-          </p>
-
-          {healthEntries.length > 0 && (
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: "6px",
-                marginBottom: "12px",
-              }}
-            >
-              {healthEntries.map(([label, state]) => (
-                <span
-                  key={label}
-                  style={{
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    borderRadius: "6px",
-                    color:
-                      state === "live" ? "#22c55e" :
-                      state === "loading" ? "#f59e0b" :
-                      state === "fallback" ? "#a78bfa" :
-                      "#ef4444",
-                    fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: "10px",
-                    padding: "3px 6px",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {label}: {state}
-                </span>
+          {panelMode === "info" ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              {INFO_SECTIONS.map((section) => (
+                <section key={section.title}>
+                  <h3
+                    style={{
+                      margin: "0 0 4px",
+                      color: "var(--color-text)",
+                      fontFamily: "'IBM Plex Sans', sans-serif",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {section.title}
+                  </h3>
+                  <p
+                    style={{
+                      margin: 0,
+                      color: "rgba(255,255,255,0.72)",
+                      fontFamily: "'IBM Plex Sans', sans-serif",
+                      fontSize: "12px",
+                      lineHeight: 1.55,
+                    }}
+                  >
+                    {section.body}
+                  </p>
+                </section>
               ))}
             </div>
-          )}
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "7px" }}>
-            {SOURCES.map((source) => (
-              <a
-                key={source.url}
-                href={source.url}
-                target="_blank"
-                rel="noreferrer"
+          ) : (
+            <>
+              <p
                 style={{
-                  color: "#93c5fd",
+                  margin: "0 0 12px",
+                  color: "rgba(255,255,255,0.72)",
                   fontFamily: "'IBM Plex Sans', sans-serif",
                   fontSize: "12px",
-                  lineHeight: 1.4,
-                  textDecoration: "none",
+                  lineHeight: 1.55,
                 }}
               >
-                {source.label}
-              </a>
-            ))}
-          </div>
+                Routes are macro-scale approximations for analysis, not navigation charts. Land, rail,
+                pipeline, and diversion corridors are simplified to show strategic exposure and may not
+                trace every real interchange, siding, or shipping lane. Approximate routes are synthetic
+                corridor sketches based on public trade patterns, not AIS-derived tracks. Source links
+                include live feeds, public datasets, corridor authorities, and supporting references.
+              </p>
+
+              <p
+                style={{
+                  margin: "0 0 12px",
+                  color: "rgba(255,255,255,0.58)",
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: "10px",
+                  lineHeight: 1.5,
+                  textTransform: "uppercase",
+                }}
+              >
+                Route/corridor data last updated: {ROUTE_DATA_LAST_UPDATED}
+              </p>
+
+              {healthEntries.length > 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "6px",
+                    marginBottom: "12px",
+                  }}
+                >
+                  {healthEntries.map(([label, state]) => (
+                    <span
+                      key={label}
+                      style={{
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        borderRadius: "6px",
+                        color: statusColor(state),
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontSize: "10px",
+                        padding: "3px 6px",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {label}: {state}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "7px" }}>
+                {SOURCES.map((source) => (
+                  <a
+                    key={source.url}
+                    href={source.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      color: "#93c5fd",
+                      fontFamily: "'IBM Plex Sans', sans-serif",
+                      fontSize: "12px",
+                      lineHeight: 1.4,
+                      textDecoration: "none",
+                    }}
+                  >
+                    {source.label}
+                  </a>
+                ))}
+              </div>
+            </>
+          )}
         </section>
       )}
     </>

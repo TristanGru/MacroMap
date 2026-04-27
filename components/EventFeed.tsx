@@ -11,7 +11,7 @@ import { CHOKEPOINTS } from "@/data/chokepoints";
 
 interface FeedItem {
   id: string;
-  type: "conflict" | "article" | "disaster";
+  type: "conflict" | "article" | "disaster" | "reroute";
   timestamp: string;
   chokepointId: string | null;
   chokepointName: string | null;
@@ -22,12 +22,14 @@ interface FeedItem {
   lng: number | null;
   accentColor?: string;
   sourceLabel?: string;
+  url?: string;
 }
 
-type FeedTab = "news" | "conflict" | "disasters";
+type FeedTab = "news" | "routes" | "conflict" | "disasters";
 
 const TAB_LABELS: Record<FeedTab, string> = {
   news: "Macro News",
+  routes: "Routes",
   conflict: "Conflict",
   disasters: "Disasters",
 };
@@ -96,6 +98,7 @@ export default function EventFeed({
         lat: null,
         lng: null,
         sourceLabel: "GDELT",
+        url: article.url,
       });
     }
 
@@ -116,6 +119,7 @@ export default function EventFeed({
           lat: cp ? cp.coordinates[1] : null,
           lng: cp ? cp.coordinates[0] : null,
           sourceLabel: "GDELT",
+          url: article.url,
         });
       }
     }
@@ -183,13 +187,38 @@ export default function EventFeed({
     return items.slice(0, 50);
   }, [disasterEvents]);
 
+  const routeItems = useMemo<FeedItem[]>(() => {
+    const items: FeedItem[] = [];
+
+    for (const signal of cache?.portWatchReroutes ?? []) {
+      const primaryId = signal.impactedChokepointIds[0] ?? signal.diversionChokepointIds[0];
+      const cp = CHOKEPOINTS.find((c) => c.id === primaryId);
+      items.push({
+        id: `reroute-${signal.id}`,
+        type: "reroute",
+        timestamp: new Date().toISOString(),
+        chokepointId: primaryId ?? null,
+        chokepointName: cp?.name ?? "Observed routes",
+        title: signal.title,
+        detail: signal.summary,
+        state: signal.state,
+        lat: cp ? cp.coordinates[1] : null,
+        lng: cp ? cp.coordinates[0] : null,
+        sourceLabel: `PortWatch - ${signal.confidence.toUpperCase()} confidence`,
+      });
+    }
+
+    return items;
+  }, [cache]);
+
   const tabItems: Record<FeedTab, FeedItem[]> = {
     news: newsItems,
+    routes: routeItems,
     conflict: conflictItems,
     disasters: disasterItems,
   };
   const feedItems = tabItems[activeTab];
-  const totalCount = newsItems.length + conflictItems.length + disasterItems.length;
+  const totalCount = newsItems.length + routeItems.length + conflictItems.length + disasterItems.length;
 
   const toggleButton = (
     <button
@@ -256,7 +285,7 @@ export default function EventFeed({
             background: "rgba(10, 15, 30, 0.96)",
             backdropFilter: "blur(16px)",
             borderLeft: "1px solid var(--color-border)",
-            zIndex: 55,
+            zIndex: 65,
             display: "flex",
             flexDirection: "column",
             overflowY: "auto",
@@ -300,20 +329,23 @@ export default function EventFeed({
             aria-label="Event feed category"
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+              gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
               gap: "6px",
               padding: "10px 12px",
               borderBottom: "1px solid var(--color-border)",
               flexShrink: 0,
             }}
           >
-            {(["news", "conflict", "disasters"] as FeedTab[]).map((tab) => (
+            {(["news", "routes", "conflict", "disasters"] as FeedTab[]).map((tab) => (
               <FeedTabButton
                 key={tab}
                 label={TAB_LABELS[tab]}
                 count={tabItems[tab].length}
                 selected={activeTab === tab}
-                onClick={() => setActiveTab(tab)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setActiveTab(tab);
+                }}
               />
             ))}
           </div>
@@ -342,6 +374,10 @@ export default function EventFeed({
                 key={item.id}
                 item={item}
                 onClick={() => {
+                  if (item.type === "article" && item.url) {
+                    window.open(item.url, "_blank", "noopener,noreferrer");
+                    return;
+                  }
                   if (item.lat !== null && item.lng !== null) {
                     onItemClick(item.lat, item.lng, item.chokepointId);
                   }
@@ -364,7 +400,7 @@ function FeedTabButton({
   label: string;
   count: number;
   selected: boolean;
-  onClick: () => void;
+  onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }) {
   return (
     <button
@@ -413,7 +449,7 @@ function FeedItemRow({
       style={{
         padding: "12px 16px",
         borderBottom: "1px solid var(--color-border-subtle)",
-        cursor: item.lat !== null ? "pointer" : "default",
+        cursor: item.url || item.lat !== null ? "pointer" : "default",
         background: "transparent",
       }}
       onMouseEnter={(e) => {
@@ -422,8 +458,8 @@ function FeedItemRow({
       onMouseLeave={(e) => {
         e.currentTarget.style.background = "transparent";
       }}
-      role={item.lat !== null ? "button" : undefined}
-      tabIndex={item.lat !== null ? 0 : undefined}
+      role={item.url || item.lat !== null ? "button" : undefined}
+      tabIndex={item.url || item.lat !== null ? 0 : undefined}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") onClick();
       }}
@@ -484,7 +520,22 @@ function FeedItemRow({
           marginBottom: "2px",
         }}
       >
-        {item.title}
+        {item.url ? (
+          <a
+            href={item.url}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              color: "inherit",
+              textDecoration: "none",
+            }}
+          >
+            {item.title}
+          </a>
+        ) : (
+          item.title
+        )}
       </div>
 
       <div

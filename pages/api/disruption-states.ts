@@ -5,6 +5,11 @@ import {
   isCacheStale,
   readCache,
 } from "@/lib/disruption-state";
+import {
+  getPortWatchFlowEvidence,
+  getPortWatchSnapshot,
+  PORTWATCH_ENABLED_CHOKEPOINT_IDS,
+} from "@/lib/portwatch";
 import type { DisruptionStateCache } from "@/lib/types";
 import { emptyCache } from "@/lib/types";
 import { kvSet, KV_KEYS } from "@/lib/kv";
@@ -22,25 +27,38 @@ function ensureCompleteCache(cache: DisruptionStateCache): DisruptionStateCache 
     const current = chokepoints[cp.id];
     if (!current) {
       changed = true;
-      chokepoints[cp.id] = {
-        ...initialChokepointState(cp.id),
-        state: "clean",
-        consecutivePollsBelowClean: 1,
-      };
-      continue;
-    }
-
-    if (current.state === "unknown" && current.articleCount === 0) {
-      changed = true;
-      chokepoints[cp.id] = {
-        ...current,
-        state: "clean",
-        consecutivePollsBelowClean: Math.max(current.consecutivePollsBelowClean, 1),
-      };
+      chokepoints[cp.id] = initialChokepointState(cp.id);
     }
   }
 
   return changed ? { ...cache, chokepoints } : cache;
+}
+
+async function hydratePriorityChokepoints(cache: DisruptionStateCache): Promise<DisruptionStateCache> {
+  const priorityIds = PORTWATCH_ENABLED_CHOKEPOINT_IDS;
+  let changed = false;
+  const chokepoints = { ...cache.chokepoints };
+
+  for (const id of priorityIds) {
+    const current = chokepoints[id] ?? initialChokepointState(id);
+    if (current.observedFlow && current.articleCount > 0 && current.state !== "unknown") continue;
+
+    try {
+      const observedFlow = await getPortWatchFlowEvidence(id);
+      if (current.articleCount === 0 && current.articles.length === 0 && !observedFlow) continue;
+      chokepoints[id] = computeNewState(
+        current,
+        current.articleCount,
+        current.articles,
+        observedFlow
+      );
+      changed = true;
+    } catch (err) {
+      console.warn(`[disruption-states] Priority hydrate failed for ${id}:`, err);
+    }
+  }
+
+  return changed ? { ...cache, chokepoints, fetchedAt: new Date().toISOString() } : cache;
 }
 
 export default async function handler(
@@ -76,6 +94,24 @@ export default async function handler(
     const completedCache = ensureCompleteCache(cache);
     if (completedCache !== cache) {
       cache = { ...completedCache, fetchedAt: new Date().toISOString() };
+      await kvSet(KV_KEYS.STATE, cache);
+    }
+
+    const hasPriorityGap = PORTWATCH_ENABLED_CHOKEPOINT_IDS.some((id) => {
+      const state = cache.chokepoints[id];
+      return !state || !state.observedFlow || state.articleCount === 0 || state.state === "unknown";
+    });
+    if (hasPriorityGap) {
+      const hydratedCache = await hydratePriorityChokepoints(cache);
+      if (hydratedCache !== cache) {
+        cache = hydratedCache;
+        await kvSet(KV_KEYS.STATE, cache);
+      }
+    }
+
+    const snapshot = await getPortWatchSnapshot();
+    if (snapshot.reroutes.length > 0) {
+      cache = { ...cache, portWatchReroutes: snapshot.reroutes };
       await kvSet(KV_KEYS.STATE, cache);
     }
 

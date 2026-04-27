@@ -8,7 +8,7 @@ export const PORTS: Port[] = [
     coordinates: [49.71, 26.71],
     portType: "origin",
     resourceTypes: ["oil"],
-    description: "Saudi Arabia's largest crude export terminal. ~7 Mbpd capacity.",
+    description: "Saudi Arabia's core Persian Gulf crude export terminal and a key outlet for Arab Light barrels. It matters because some Saudi east-coast volumes must either clear Hormuz or shift west through the East-West pipeline to Yanbu.",
   },
   {
     id: "ras-laffan",
@@ -16,7 +16,7 @@ export const PORTS: Port[] = [
     coordinates: [51.55, 25.9],
     portType: "origin",
     resourceTypes: ["lng"],
-    description: "Qatar's LNG mega-terminal. World's largest single LNG export facility.",
+    description: "QatarEnergy's North Field export complex, built around Ras Laffan Port's LNG, condensate, LPG, products, and sulphur berths. It is one of the world's most important LNG outlets, so Hormuz risk quickly becomes European and Asian gas-market risk.",
   },
   {
     id: "kharg-island",
@@ -40,7 +40,7 @@ export const PORTS: Port[] = [
     coordinates: [-95.37, 29.76],
     portType: "origin",
     resourceTypes: ["oil", "fertilizer"],
-    description: "US Gulf Coast oil export hub and largest US fertilizer import terminal.",
+    description: "The Houston Ship Channel anchors the largest US refining and petrochemical complex and a major Gulf Coast crude/products export corridor. It is also exposed to hurricanes, channel incidents, and refinery outages that can move fuel and chemical markets.",
   },
   {
     id: "sabine-pass",
@@ -48,7 +48,7 @@ export const PORTS: Port[] = [
     coordinates: [-93.87, 29.73],
     portType: "origin",
     resourceTypes: ["lng"],
-    description: "Largest US LNG export terminal. ~45 Mtpa capacity serving Europe & Asia.",
+    description: "Cheniere's Sabine Pass is a six-train US LNG export complex with about 30 mtpa of production capacity, three marine berths, and deep Gulf access. It is a direct link between US shale gas and European or Asian spot LNG balances.",
   },
   {
     id: "corpus-christi",
@@ -56,7 +56,7 @@ export const PORTS: Port[] = [
     coordinates: [-97.39, 27.8],
     portType: "origin",
     resourceTypes: ["oil", "lng"],
-    description: "Fastest-growing US crude export terminal. Top US oil export port by volume.",
+    description: "Corpus Christi is the leading US crude-export gateway and a growing LNG outlet, tied directly to Permian and Eagle Ford production. Its deeper, wider ship channel improves large tanker economics, making it a bellwether for US energy exports.",
   },
   {
     id: "novorossiysk",
@@ -96,7 +96,7 @@ export const PORTS: Port[] = [
     coordinates: [-8.63, 33.12],
     portType: "origin",
     resourceTypes: ["fertilizer"],
-    description: "Morocco's main phosphate fertilizer and phosphoric acid export hub serving Europe, India, and the Americas.",
+    description: "Jorf Lasfar is OCP's flagship phosphate fertilizer platform, producing and exporting phosphate products into Europe, India, Brazil, and Africa. Because Morocco controls a dominant share of global phosphate rock reserves, disruption here can feed directly into planting-cost risk.",
   },
   {
     id: "port-hedland",
@@ -104,7 +104,7 @@ export const PORTS: Port[] = [
     coordinates: [118.58, -20.31],
     portType: "origin",
     resourceTypes: ["iron-ore", "lithium"],
-    description: "World's largest bulk export port. Handles ~60% of Australia's iron ore exports.",
+    description: "Port Hedland is the Pilbara's dominant iron-ore export gateway and one of the world's largest bulk ports by tonnage. It links BHP, Fortescue, and other Western Australian mines to Asian steel demand, so cyclones or channel incidents can move iron ore sentiment fast.",
   },
   {
     id: "gladstone",
@@ -120,7 +120,7 @@ export const PORTS: Port[] = [
     coordinates: [151.78, -32.92],
     portType: "origin",
     resourceTypes: ["coal"],
-    description: "World's largest thermal coal export port. ~165 Mtpa capacity serving Japan, Korea, and China.",
+    description: "Newcastle is a premier seaborne coal export gateway for New South Wales mines. It matters most for Asian power and steel buyers, and it is exposed to rail outages, weather, labor action, and climate protests.",
   },
   {
     id: "antofagasta",
@@ -152,7 +152,7 @@ export const PORTS: Port[] = [
     coordinates: [-48.51, -25.52],
     portType: "origin",
     resourceTypes: ["grain", "fertilizer"],
-    description: "Brazil's largest grain port. Primary export gateway for soybeans and corn to China and Europe.",
+    description: "Paranagua is a major Brazilian soy, corn, meal, sugar, and fertilizer gateway. Queueing, drought, or inland truck/rail disruption here can quickly affect China-bound grain flows and fertilizer availability for Brazil's next crop cycle.",
   },
   {
     id: "santos",
@@ -202,7 +202,7 @@ export const PORTS: Port[] = [
     coordinates: [4.14, 51.97],
     portType: "hub",
     resourceTypes: ["oil", "lng", "container", "grain", "fertilizer", "coal", "gas", "rare-earth", "strategic-metals", "cobalt", "uranium", "iron-ore", "lithium", "copper"],
-    description: "Europe's largest port. Entry point for ~13% of EU energy imports.",
+    description: "Rotterdam is Europe's largest seaport and a core energy, refining, container, and inland barge hub for the Rhine-Ruhr industrial region. It matters because crude, products, LNG, coal, chemicals, and containers can all bottleneck there before moving into northwest Europe.",
   },
   {
     id: "antwerp",
@@ -210,7 +210,7 @@ export const PORTS: Port[] = [
     coordinates: [4.4, 51.23],
     portType: "destination",
     resourceTypes: ["container", "fertilizer", "copper"],
-    description: "Europe's second-largest port. Key container and chemical import hub.",
+    description: "Antwerp-Bruges is Europe's second major northwest gateway and one of the world's leading integrated chemical clusters. It is a high-signal node for containers, fertilizers, copper, breakbulk, autos, and petrochemical logistics into Belgium, France, the Netherlands, and Germany.",
   },
   {
     id: "singapore",
@@ -218,7 +218,7 @@ export const PORTS: Port[] = [
     coordinates: [103.82, 1.27],
     portType: "hub",
     resourceTypes: ["oil", "container", "lng", "coal"],
-    description: "World's second-busiest port. Asia-Pacific oil bunkering & container transshipment hub.",
+    description: "Singapore is the world's busiest container transshipment hub and the leading global bunkering center. Its position beside Malacca makes it a pressure gauge for Asia-Europe liner networks, tanker routing, fuel availability, and regional piracy/security risk.",
   },
   {
     id: "durban",
@@ -226,7 +226,7 @@ export const PORTS: Port[] = [
     coordinates: [31.03, -29.88],
     portType: "hub",
     resourceTypes: ["container", "coal", "copper", "cobalt"],
-    description: "Africa's largest port. Gateway for Southern African imports and Central African mineral corridor exports.",
+    description: "Durban is South Africa's primary container gateway and a regional logistics hub for southern Africa. Delays here can affect automotive, retail, and industrial imports while pushing some copper/cobalt and inland cargo toward Dar es Salaam, Beira, or Lobito alternatives.",
   },
   {
     id: "dar-es-salaam",
@@ -234,7 +234,7 @@ export const PORTS: Port[] = [
     coordinates: [39.29, -6.82],
     portType: "destination",
     resourceTypes: ["container", "copper", "cobalt"],
-    description: "Tanzania's main port. Gateway for DRC and Zambia copper corridor exports.",
+    description: "Dar es Salaam is Tanzania's main seaport and a key outlet for the Central Corridor into Zambia and the DRC. It matters for copper and cobalt because inland border, rail, and port delays can decide whether cargo diverts to Lobito, Beira, or Durban.",
   },
   {
     id: "mombasa",
@@ -250,7 +250,7 @@ export const PORTS: Port[] = [
     coordinates: [72.82, 18.96],
     portType: "destination",
     resourceTypes: ["oil", "lng", "container", "fertilizer"],
-    description: "India's largest container port and key LNG import terminal.",
+    description: "Mumbai/JNPT is India's largest container gateway and a west-coast energy import node near major refining, petrochemical, and consumer markets. It is sensitive to Arabian Sea weather, port congestion, and Red Sea or Hormuz route risk.",
   },
   {
     id: "shanghai",
@@ -258,7 +258,7 @@ export const PORTS: Port[] = [
     coordinates: [121.5, 31.2],
     portType: "hub",
     resourceTypes: ["oil", "coal", "iron-ore", "container", "rare-earth", "strategic-metals", "cobalt", "lithium", "grain", "copper", "gas", "uranium"],
-    description: "World's busiest container port. China's primary import gateway.",
+    description: "Shanghai is the world's busiest container port and the Yangtze Delta's main global trade gateway. Its Yangshan deepwater terminals connect export manufacturing, high-value imports, energy cargo, and inland river distribution across eastern China.",
   },
   {
     id: "ningbo",
@@ -266,7 +266,7 @@ export const PORTS: Port[] = [
     coordinates: [121.88, 29.87],
     portType: "destination",
     resourceTypes: ["oil", "iron-ore", "coal", "lng"],
-    description: "World's largest port by cargo tonnage. China's top oil import terminal.",
+    description: "Ningbo-Zhoushan is one of the world's largest ports by total cargo tonnage, with major crude, iron ore, coal, LNG, chemicals, and container terminals. It is a key landing point for China's energy and bulk raw-material imports.",
   },
   {
     id: "tianjin",
@@ -274,7 +274,7 @@ export const PORTS: Port[] = [
     coordinates: [117.7, 38.97],
     portType: "destination",
     resourceTypes: ["oil", "coal", "container", "iron-ore"],
-    description: "China's third-largest port and primary gateway for Beijing-area imports.",
+    description: "Tianjin/Xingang is North China's main maritime gateway for Beijing, Hebei industry, and the Bohai Rim. It concentrates containers, coal, crude, ore, vehicles, and industrial inputs that feed steel, construction, and manufacturing demand.",
   },
   {
     id: "busan",
@@ -282,7 +282,7 @@ export const PORTS: Port[] = [
     coordinates: [129.07, 35.1],
     portType: "hub",
     resourceTypes: ["container", "coal", "lng", "uranium", "iron-ore", "rare-earth", "strategic-metals"],
-    description: "South Korea's main container hub and the world's 6th-busiest port by TEU.",
+    description: "Busan is South Korea's primary container transshipment hub and a major Northeast Asian relay point. It connects Korea's export manufacturing base with China, Japan, North America, and Europe while also supporting strategic materials and energy-adjacent supply chains.",
   },
   {
     id: "ulsan",
@@ -290,7 +290,7 @@ export const PORTS: Port[] = [
     coordinates: [129.31, 35.54],
     portType: "destination",
     resourceTypes: ["oil", "lng"],
-    description: "South Korea's primary LNG and crude import terminal.",
+    description: "Ulsan is South Korea's heavy-industry and energy port, tied to refining, petrochemicals, shipbuilding, LNG, and crude imports. Stress here matters for Korean fuel supply and industrial exports, not just local port throughput.",
   },
   {
     id: "yokohama",
@@ -298,7 +298,7 @@ export const PORTS: Port[] = [
     coordinates: [139.64, 35.44],
     portType: "destination",
     resourceTypes: ["oil", "lng", "coal", "container", "rare-earth", "strategic-metals"],
-    description: "Japan's main import gateway for energy commodities and manufactured goods.",
+    description: "Yokohama/Tokyo Bay is Japan's largest metropolitan import complex for containers, energy, autos, and industrial inputs. Because Japan relies heavily on imported fuel and materials, port disruption can show up in utilities, manufacturers, and consumer goods quickly.",
   },
   {
     id: "new-york",
@@ -306,7 +306,7 @@ export const PORTS: Port[] = [
     coordinates: [-74.0, 40.7],
     portType: "hub",
     resourceTypes: ["container", "rare-earth", "strategic-metals"],
-    description: "Largest US East Coast container port. ~4M TEU annual capacity.",
+    description: "New York/New Jersey is the largest US East Coast container gateway and a major distribution node for the Northeast consumer market. It is a useful signal for Atlantic retail inventory, warehouse congestion, rail/truck capacity, and Panama or Suez routing changes.",
   },
   {
     id: "los-angeles",
@@ -314,7 +314,7 @@ export const PORTS: Port[] = [
     coordinates: [-118.17, 33.75],
     portType: "hub",
     resourceTypes: ["container", "rare-earth", "strategic-metals"],
-    description: "Largest US container port complex. ~20M TEU annual throughput, primary US gateway for Trans-Pacific trade.",
+    description: "Los Angeles/Long Beach is the largest US container port complex and the main Trans-Pacific import gateway for American retail and manufacturing supply chains. It is highly sensitive to tariff pull-forwards, labor negotiations, rail dwell, and warehouse congestion.",
   },
   {
     id: "west-siberia-urengoy",
@@ -458,7 +458,7 @@ export const PORTS: Port[] = [
     coordinates: [3.2, 51.38],
     portType: "destination",
     resourceTypes: ["gas"],
-    description: "Belgian gas landing and trading hub connected to UK and continental networks.",
+    description: "Zeebrugge is a Belgian LNG, interconnector, and gas-trading node connected to UK and continental European networks. It matters when Europe is balancing LNG arrivals, storage injections, and pipeline flows across northwest Europe.",
   },
   {
     id: "jubail",
@@ -546,7 +546,7 @@ export const PORTS: Port[] = [
     coordinates: [31.2, 31.3],
     portType: "destination",
     resourceTypes: ["grain"],
-    description: "Egyptian Mediterranean grain import hub for Black Sea wheat.",
+    description: "Alexandria/Damietta is Egypt's Mediterranean grain import gateway, closely tied to Black Sea wheat availability and Suez/Red Sea shipping conditions. Disruption here can feed directly into food-security and subsidy pressure in one of the world's largest wheat-importing countries.",
   },
   {
     id: "kozmino",
@@ -626,7 +626,7 @@ export const PORTS: Port[] = [
     coordinates: [103.3, 3.8],
     portType: "destination",
     resourceTypes: ["rare-earth"],
-    description: "Malaysia rare earth processing hub tied to Australian concentrate supply.",
+    description: "Kuantan is Malaysia's rare earth processing node connected to Australian concentrate supply. It is important because separation and processing capacity, not mine tonnage alone, is the key bottleneck in rare earth supply chains.",
   },
   {
     id: "yanbu",
@@ -650,7 +650,7 @@ export const PORTS: Port[] = [
     coordinates: [56.35, 25.12],
     portType: "destination",
     resourceTypes: ["oil"],
-    description: "UAE Indian Ocean oil export terminal that bypasses the Strait of Hormuz.",
+    description: "Fujairah is the UAE's Indian Ocean oil terminal and bunker hub, connected to Abu Dhabi by pipeline so some barrels can bypass Hormuz. In a Gulf crisis it becomes one of the few practical relief valves for regional crude exports.",
   },
   {
     id: "ain-sukhna",
@@ -810,7 +810,7 @@ export const PORTS: Port[] = [
     coordinates: [13.5, -12.35],
     portType: "destination",
     resourceTypes: ["copper", "cobalt"],
-    description: "Angolan Atlantic port for Copperbelt exports via the Lobito Corridor.",
+    description: "Lobito is Angola's Atlantic outlet for the revived Lobito Corridor, designed to move Copperbelt copper and cobalt west instead of through longer routes to the Indian Ocean. Its importance rises when Dar es Salaam, Beira, or Durban corridors are congested.",
   },
   {
     id: "alberta-oil-sands",
@@ -866,7 +866,7 @@ export const PORTS: Port[] = [
     coordinates: [11.5, 44.6],
     portType: "destination",
     resourceTypes: ["gas"],
-    description: "Northern Italy gas hub connected to the Trans-Mediterranean pipeline system.",
+    description: "Minerbio is a northern Italian gas hub and storage/interconnection point, relevant to Algerian, Mediterranean, and broader European gas balancing. Stress here is less about ships and more about pipeline nominations, storage, and winter demand.",
   },
   {
     id: "malkoclar",
@@ -882,7 +882,7 @@ export const PORTS: Port[] = [
     coordinates: [32.06, -28.8],
     portType: "origin",
     resourceTypes: ["coal"],
-    description: "South Africa's dominant coal export terminal serving Asian and Atlantic basin buyers.",
+    description: "Richards Bay is South Africa's dominant coal export terminal and a key outlet for Mpumalanga coal mines. Rail reliability from the interior is often the binding constraint, so port status has to be read together with inland logistics.",
   },
   {
     id: "gwangyang",
@@ -906,7 +906,7 @@ export const PORTS: Port[] = [
     coordinates: [102.8, 24.9],
     portType: "hub",
     resourceTypes: ["rare-earth", "container"],
-    description: "Southwest China processing and logistics hub for Myanmar-origin rare earth supply.",
+    description: "Kunming is a southwest China logistics and processing gateway for Myanmar-linked rare earth and cross-border freight. It is a strategic inland node because regional conflict or border closures can interrupt heavy rare earth feedstock before it reaches separation and magnet supply chains.",
   },
   {
     id: "guangzhou",
@@ -914,7 +914,7 @@ export const PORTS: Port[] = [
     coordinates: [113.3, 23.1],
     portType: "destination",
     resourceTypes: ["rare-earth", "strategic-metals"],
-    description: "South China manufacturing hub for magnets, electronics, and semiconductor-linked inputs.",
+    description: "Guangzhou/Pearl River Delta is a dense manufacturing and export region for electronics, magnets, machinery, autos, and advanced materials. It converts upstream rare earth and strategic-metal inputs into finished goods that move through South China ports.",
   },
   {
     id: "mountain-pass",
@@ -930,7 +930,7 @@ export const PORTS: Port[] = [
     coordinates: [120.3, 22.6],
     portType: "destination",
     resourceTypes: ["strategic-metals"],
-    description: "Taiwan port gateway for semiconductor materials and electronics supply chains.",
+    description: "Kaohsiung is Taiwan's main container and industrial port, serving electronics, petrochemicals, metals, and semiconductor-adjacent supply chains. It matters because even small logistics shocks can intersect with very high-value chip and hardware production.",
   },
   {
     id: "thai-nguyen",
