@@ -2,14 +2,11 @@ import type { NewsArticle } from "@/lib/types";
 import { GDELT_FIXTURES } from "@/lib/gdelt.fixtures";
 import { CHOKEPOINT_MAP } from "@/data/chokepoints";
 
-/**
- * GDELT Doc API response shape (subset)
- */
 interface GdeltArticle {
   title: string;
   url: string;
   domain: string;
-  seendate: string; // "20260401T123000Z" format
+  seendate: string;
   socialimage?: string;
 }
 
@@ -18,10 +15,10 @@ interface GdeltResponse {
 }
 
 const GDELT_BASE = "https://api.gdeltproject.org/api/v2/doc/doc";
-const MAX_RECORDS = 10; // top 10, most recent first
+const MAX_RECORDS = 10;
+const FETCH_TIMEOUT_MS = 15000;
 
 function parseGdeltDate(seendate: string): string {
-  // "20260401T123000Z" → ISO 8601
   try {
     const y = seendate.slice(0, 4);
     const mo = seendate.slice(4, 6);
@@ -39,16 +36,73 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * Query GDELT for a single chokepoint.
- * Returns top 5 articles by recency, most recent first.
- * Respects 1000ms rate spacing (caller must enforce if batching).
- */
+function fallbackQuery(name: string): string {
+  if (name.startsWith("Strait of ")) return name.replace("Strait of ", "");
+  if (name === "Turkish Straits") return "Bosphorus";
+  if (name === "Danish Straits") return "Great Belt";
+  if (name === "Bab el-Mandeb") return "Bab el Mandeb";
+  return name;
+}
+
+function buildUrl(query: string): string {
+  const params = new URLSearchParams({
+    query,
+    mode: "artlist",
+    maxrecords: String(MAX_RECORDS),
+    format: "json",
+    startdatetime: new Date(Date.now() - 24 * 3600 * 1000)
+      .toISOString()
+      .replace(/[-:T.Z]/g, "")
+      .slice(0, 14),
+    sort: "datedesc",
+  });
+  return `${GDELT_BASE}?${params.toString()}`;
+}
+
+async function fetchGdeltArticles(url: string, chokepointId: string): Promise<GdeltArticle[]> {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      if (attempt > 1) await delay(2000);
+
+      const res = await fetch(url, {
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+
+      if (!res.ok) {
+        console.warn(`[gdelt] HTTP ${res.status} for ${chokepointId}`);
+        if (res.status === 429 && attempt === 1) continue;
+        return [];
+      }
+
+      const text = await res.text();
+      if (!text || text.trim() === "") {
+        console.warn(`[gdelt] Empty response for ${chokepointId} - possible silent 429`);
+        if (attempt === 1) continue;
+        return [];
+      }
+
+      let data: GdeltResponse;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.warn(`[gdelt] JSON parse error for ${chokepointId}`);
+        return [];
+      }
+
+      return data.articles ?? [];
+    } catch (err) {
+      console.error(`[gdelt] Fetch error for ${chokepointId} attempt ${attempt}:`, err);
+      if (attempt === 2) return [];
+    }
+  }
+
+  return [];
+}
+
 export async function queryGdelt(chokepointId: string): Promise<{
   articles: NewsArticle[];
   articleCount: number;
 }> {
-  // Fixture mode for local development
   if (process.env.NEXT_PUBLIC_USE_GDELT_FIXTURES === "true") {
     const fixture = GDELT_FIXTURES[chokepointId];
     if (fixture) {
@@ -66,68 +120,22 @@ export async function queryGdelt(chokepointId: string): Promise<{
     return { articles: [], articleCount: 0 };
   }
 
-  const params = new URLSearchParams({
-    query: cp.gdeltQuery,
-    mode: "artlist",
-    maxrecords: String(MAX_RECORDS),
-    format: "json",
-    // Last 24 hours
-    startdatetime: (() => {
-      const d = new Date(Date.now() - 24 * 3600 * 1000);
-      return d.toISOString().replace(/[-:T.Z]/g, "").slice(0, 14);
-    })(),
-    sort: "datedesc",
-  });
-
-  const url = `${GDELT_BASE}?${params.toString()}`;
-
-  try {
-    const res = await fetch(url, {
-      signal: AbortSignal.timeout(8000), // 8s timeout
-    });
-
-    if (!res.ok) {
-      console.warn(`[gdelt] HTTP ${res.status} for ${chokepointId}`);
-      return { articles: [], articleCount: 0 };
-    }
-
-    const text = await res.text();
-    if (!text || text.trim() === "") {
-      // Silent 429 or empty response — treat as 0 articles
-      console.warn(`[gdelt] Empty response for ${chokepointId} — possible silent 429`);
-      return { articles: [], articleCount: 0 };
-    }
-
-    let data: GdeltResponse;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      console.warn(`[gdelt] JSON parse error for ${chokepointId}`);
-      return { articles: [], articleCount: 0 };
-    }
-
-    const raw = data.articles ?? [];
-    const articleCount = raw.length;
-
-    const articles: NewsArticle[] = raw.slice(0, 5).map((a) => ({
-      title: a.title || "Untitled",
-      url: a.url,
-      source: a.domain || "Unknown",
-      publishedAt: parseGdeltDate(a.seendate),
-      relevanceScore: 0.7, // GDELT doesn't return scores in artlist mode
-    }));
-
-    return { articles, articleCount };
-  } catch (err) {
-    console.error(`[gdelt] Fetch error for ${chokepointId}:`, err);
-    return { articles: [], articleCount: 0 };
+  let raw = await fetchGdeltArticles(buildUrl(cp.gdeltQuery), chokepointId);
+  if (raw.length === 0) {
+    raw = await fetchGdeltArticles(buildUrl(fallbackQuery(cp.name)), chokepointId);
   }
+
+  const articles: NewsArticle[] = raw.slice(0, 5).map((a) => ({
+    title: a.title || "Untitled",
+    url: a.url,
+    source: a.domain || "Unknown",
+    publishedAt: parseGdeltDate(a.seendate),
+    relevanceScore: 0.7,
+  }));
+
+  return { articles, articleCount: raw.length };
 }
 
-/**
- * Query all 10 chokepoints with 1000ms spacing between requests.
- * Returns a map of chokepointId → result.
- */
 export async function queryAllChokepoints(): Promise<
   Record<string, { articles: NewsArticle[]; articleCount: number }>
 > {
@@ -138,7 +146,7 @@ export async function queryAllChokepoints(): Promise<
     const cp = CHOKEPOINTS[i];
     results[cp.id] = await queryGdelt(cp.id);
     if (i < CHOKEPOINTS.length - 1) {
-      await delay(1000); // 1s spacing per GDELT rate limit guidance
+      await delay(1200);
     }
   }
 

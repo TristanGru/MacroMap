@@ -3,12 +3,34 @@ import { readCache } from "@/lib/disruption-state";
 import { fetchAllPrices } from "@/lib/eia";
 import { fetchCommodityPrices } from "@/lib/oilprice";
 import { fetchBDI } from "@/lib/bdi";
+import { fetchMacroSignals } from "@/lib/fred";
 import { kvGet, kvSet, KV_KEYS } from "@/lib/kv";
-import type { CommodityPrices, DisruptionStateCache } from "@/lib/types";
+import type { CommodityPrices, DisruptionStateCache, MacroSignal, PriceData } from "@/lib/types";
 
 const COMMODITY_KV_KEY = "macro-map:commodity-prices";
 const COMMODITY_MAX_AGE_MS = 60 * 60 * 1000; // 1h for oil/grain/copper
 const BDI_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24h for BDI
+
+function hasAnyPrice(prices: CommodityPrices): boolean {
+  return Boolean(
+    prices.brent ||
+      prices.wti ||
+      prices.natGas ||
+      prices.wheat ||
+      prices.copper ||
+      prices.bdi
+  );
+}
+
+function signalToPriceData(signal: MacroSignal | undefined): PriceData | null {
+  if (!signal) return null;
+  return {
+    current: signal.value,
+    delta24h: signal.delta,
+    history30d: [],
+    fetchedAt: signal.date,
+  };
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -36,35 +58,49 @@ export default async function handler(
     }
 
     // Fetch fresh prices in parallel
-    const [eiaResult, commodityResult, bdiResult] = await Promise.all([
+    const [eiaResult, commodityResult, bdiResult, macroSignals] = await Promise.all([
       fetchAllPrices().catch(() => ({ brent: null, wti: null })),
       fetchCommodityPrices().catch(() => ({
         brent: null, wti: null, natGas: null, wheat: null, copper: null,
       })),
       fetchBDI().catch(() => null),
+      fetchMacroSignals().catch(() => []),
     ]);
+    const signalById = new Map(macroSignals.map((s) => [s.id, s]));
 
-    const prices: CommodityPrices = {
+    const freshPrices: CommodityPrices = {
       // Prefer EIA for Brent/WTI (30-day history), fall back to Oil Price API
       brent: eiaResult.brent ?? commodityResult.brent,
       wti: eiaResult.wti ?? commodityResult.wti,
-      natGas: commodityResult.natGas,
-      wheat: commodityResult.wheat,
-      copper: commodityResult.copper,
+      natGas: commodityResult.natGas ?? signalToPriceData(signalById.get("DHHNGSP")),
+      wheat: commodityResult.wheat ?? signalToPriceData(signalById.get("PWHEAMTUSDM")),
+      copper: commodityResult.copper ?? signalToPriceData(signalById.get("PCOPPUSDM")),
       bdi: bdiResult,
     };
 
-    // Cache the result
-    await kvSet(COMMODITY_KV_KEY, prices, { ex: 3600 });
+    const stateCache = await readCache();
+    const prices: CommodityPrices = {
+      brent: freshPrices.brent ?? cached?.brent ?? stateCache.prices.brent,
+      wti: freshPrices.wti ?? cached?.wti ?? stateCache.prices.wti,
+      natGas: freshPrices.natGas ?? cached?.natGas ?? null,
+      wheat: freshPrices.wheat ?? cached?.wheat ?? null,
+      copper: freshPrices.copper ?? cached?.copper ?? null,
+      bdi: freshPrices.bdi ?? cached?.bdi ?? null,
+    };
+
+    // Cache only known-good payloads. Missing prod env vars or provider outages
+    // should not replace the last useful sidebar data with an all-null response.
+    if (hasAnyPrice(prices)) {
+      await kvSet(COMMODITY_KV_KEY, prices, { ex: 3600 });
+    }
 
     // Also update the main disruption-state cache with fresh Brent/WTI
-    if (prices.brent || prices.wti) {
-      const stateCache = await readCache();
+    if (freshPrices.brent || freshPrices.wti) {
       const updatedCache: DisruptionStateCache = {
         ...stateCache,
         prices: {
-          brent: prices.brent ?? stateCache.prices.brent,
-          wti: prices.wti ?? stateCache.prices.wti,
+          brent: freshPrices.brent ?? stateCache.prices.brent,
+          wti: freshPrices.wti ?? stateCache.prices.wti,
         },
         fetchedAt: new Date().toISOString(),
       };

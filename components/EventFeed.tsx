@@ -5,6 +5,7 @@ import type {
   DisasterType,
   DisruptionState,
   DisruptionStateCache,
+  NewsArticle,
 } from "@/lib/types";
 import { CHOKEPOINTS } from "@/data/chokepoints";
 
@@ -45,6 +46,7 @@ interface EventFeedProps {
   onToggle: () => void;
   conflictEvents: ConflictEvent[];
   disasterEvents?: DisasterEvent[];
+  macroNews?: NewsArticle[];
   cache: DisruptionStateCache | null;
   onItemClick: (lat: number, lng: number, chokepointId: string | null) => void;
 }
@@ -70,18 +72,38 @@ export default function EventFeed({
   onToggle,
   conflictEvents,
   disasterEvents = [],
+  macroNews = [],
   cache,
   onItemClick,
 }: EventFeedProps) {
   const [activeTab, setActiveTab] = useState<FeedTab>("news");
 
   const newsItems = useMemo<FeedItem[]>(() => {
-    if (!cache) return [];
     const items: FeedItem[] = [];
+    const seen = new Set<string>();
 
-    for (const [id, cpState] of Object.entries(cache.chokepoints)) {
+    for (const article of macroNews) {
+      seen.add(article.url);
+      items.push({
+        id: `macro-${article.url}`,
+        type: "article",
+        timestamp: article.publishedAt,
+        chokepointId: null,
+        chokepointName: "Macro News",
+        title: article.title,
+        detail: article.source,
+        state: null,
+        lat: null,
+        lng: null,
+        sourceLabel: "GDELT",
+      });
+    }
+
+    for (const [id, cpState] of Object.entries(cache?.chokepoints ?? {})) {
       const cp = CHOKEPOINTS.find((c) => c.id === id);
       for (const article of cpState.articles) {
+        if (seen.has(article.url)) continue;
+        seen.add(article.url);
         items.push({
           id: `article-${id}-${article.url}`,
           type: "article",
@@ -100,7 +122,7 @@ export default function EventFeed({
 
     items.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
     return items.slice(0, 50);
-  }, [cache]);
+  }, [cache, macroNews]);
 
   const conflictItems = useMemo<FeedItem[]>(() => {
     const items: FeedItem[] = [];

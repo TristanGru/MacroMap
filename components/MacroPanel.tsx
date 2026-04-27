@@ -112,6 +112,16 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   );
 }
 
+function signalToPriceData(signal: MacroSignal | undefined) {
+  if (!signal) return null;
+  return {
+    current: signal.value,
+    delta24h: signal.delta,
+    history30d: [],
+    fetchedAt: signal.date,
+  };
+}
+
 export default function MacroPanel({ prices, cache, macroSignals = [], disasterEvents = [] }: MacroPanelProps) {
   const compact = typeof window !== "undefined" && window.innerWidth <= 700;
   const [collapsed, setCollapsed] = useState(compact);
@@ -125,6 +135,15 @@ export default function MacroPanel({ prices, cache, macroSignals = [], disasterE
   const agriSignals = macroSignals.filter((s) => s.category === "agriculture");
   const energySignals = macroSignals.filter((s) => s.category === "energy");
   const macroSignalsFiltered = macroSignals.filter((s) => s.category === "macro" || !s.category);
+  const signalById = new Map(macroSignals.map((s) => [s.id, s]));
+  const displayPrices = {
+    brent: prices?.brent ?? cache?.prices.brent ?? null,
+    wti: prices?.wti ?? cache?.prices.wti ?? null,
+    natGas: prices?.natGas ?? signalToPriceData(signalById.get("DHHNGSP")),
+    wheat: prices?.wheat ?? signalToPriceData(signalById.get("PWHEAMTUSDM")),
+    copper: prices?.copper ?? signalToPriceData(signalById.get("PCOPPUSDM")),
+    bdi: prices?.bdi ?? null,
+  };
 
   // Count disrupted/stressed chokepoints
   const disruptedCount = cache
@@ -205,42 +224,42 @@ export default function MacroPanel({ prices, cache, macroSignals = [], disasterE
           {/* BDI */}
           <PriceRow
             label="Baltic Dry"
-            value={prices?.bdi?.current ?? null}
-            delta={prices?.bdi?.delta24h ?? null}
+            value={displayPrices.bdi?.current ?? null}
+            delta={displayPrices.bdi?.delta24h ?? null}
             note="Daily signal"
           />
           {/* Oil */}
           <PriceRow
             label="Brent"
-            value={prices?.brent?.current ?? null}
-            delta={prices?.brent?.delta24h ?? null}
+            value={displayPrices.brent?.current ?? null}
+            delta={displayPrices.brent?.delta24h ?? null}
             unit="$"
           />
           <PriceRow
             label="WTI"
-            value={prices?.wti?.current ?? null}
-            delta={prices?.wti?.delta24h ?? null}
+            value={displayPrices.wti?.current ?? null}
+            delta={displayPrices.wti?.delta24h ?? null}
             unit="$"
           />
           {/* Nat Gas */}
           <PriceRow
             label="Nat Gas"
-            value={prices?.natGas?.current ?? null}
-            delta={prices?.natGas?.delta24h ?? null}
+            value={displayPrices.natGas?.current ?? null}
+            delta={displayPrices.natGas?.delta24h ?? null}
             unit="$"
           />
           {/* Grain */}
           <PriceRow
             label="Wheat"
-            value={prices?.wheat?.current ?? null}
-            delta={prices?.wheat?.delta24h ?? null}
+            value={displayPrices.wheat?.current ?? null}
+            delta={displayPrices.wheat?.delta24h ?? null}
             unit="$"
           />
           {/* Copper */}
           <PriceRow
             label="Copper"
-            value={prices?.copper?.current ?? null}
-            delta={prices?.copper?.delta24h ?? null}
+            value={displayPrices.copper?.current ?? null}
+            delta={displayPrices.copper?.delta24h ?? null}
             unit="$"
           />
 

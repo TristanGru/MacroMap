@@ -1,8 +1,17 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { readCache, isCacheStale, computeNewState, initialChokepointState } from "@/lib/disruption-state";
+import {
+  computeNewState,
+  initialChokepointState,
+  isCacheStale,
+  readCache,
+} from "@/lib/disruption-state";
 import type { DisruptionStateCache } from "@/lib/types";
 import { emptyCache } from "@/lib/types";
 import { kvSet, KV_KEYS } from "@/lib/kv";
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -16,7 +25,6 @@ export default async function handler(
   try {
     let cache = await readCache();
 
-    // If KV is empty and fixtures are enabled, seed cache from fixtures immediately
     const useFixtures = process.env.NEXT_PUBLIC_USE_GDELT_FIXTURES === "true";
     const hasNoData = Object.keys(cache.chokepoints).length === 0;
     if (hasNoData && useFixtures) {
@@ -36,12 +44,8 @@ export default async function handler(
       cache = seeded;
     }
 
-    // Return cached data immediately
     res.status(200).json(cache);
 
-    // If stale, trigger a background refresh of all chokepoints
-    // Note: In Next.js Pages Router, we can't use after() — instead we fire
-    // non-blocking parallel fetch calls to the per-chokepoint refresh route
     if (isCacheStale(cache)) {
       const baseUrl = getBaseUrl(req);
       const cronSecret = process.env.CRON_SECRET;
@@ -49,18 +53,20 @@ export default async function handler(
       if (cronSecret && baseUrl) {
         const { CHOKEPOINTS } = await import("@/data/chokepoints");
 
-        // Fire and forget — don't await
-        Promise.all(
-          CHOKEPOINTS.map((cp) =>
-            fetch(`${baseUrl}/api/refresh-chokepoint?id=${cp.id}`, {
-              method: "POST",
-              headers: { Authorization: `Bearer ${cronSecret}` },
-              signal: AbortSignal.timeout(15000),
-            }).catch((err) =>
-              console.warn(`[disruption-states] Background refresh failed for ${cp.id}:`, err)
-            )
-          )
-        );
+        void (async () => {
+          for (const cp of CHOKEPOINTS) {
+            try {
+              await fetch(`${baseUrl}/api/refresh-chokepoint?id=${cp.id}`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${cronSecret}` },
+                signal: AbortSignal.timeout(15000),
+              });
+            } catch (err) {
+              console.warn(`[disruption-states] Background refresh failed for ${cp.id}:`, err);
+            }
+            await delay(1200);
+          }
+        })();
       }
     }
   } catch (err) {
@@ -71,7 +77,6 @@ export default async function handler(
 
 function getBaseUrl(req: NextApiRequest): string {
   const host = req.headers.host;
-  const protocol =
-    process.env.NODE_ENV === "production" ? "https" : "http";
+  const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
   return `${protocol}://${host}`;
 }

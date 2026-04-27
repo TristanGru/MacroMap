@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import LoadingScreen from "@/components/LoadingScreen";
 import type { SourceHealthState } from "@/components/DataSourcesPanel";
-import type { DisruptionStateCache, Chokepoint, ResourceType, RouteStatus, RouteFocusTarget, DisruptionState, ConflictEvent, CommodityPrices, DisasterEvent, MacroSignal } from "@/lib/types";
+import type { DisruptionStateCache, Chokepoint, ResourceType, RouteStatus, RouteFocusTarget, DisruptionState, ConflictEvent, CommodityPrices, DisasterEvent, MacroSignal, NewsArticle } from "@/lib/types";
 import { CHOKEPOINTS } from "@/data/chokepoints";
 import { ROUTES } from "@/data/routes";
 import { PORTS } from "@/data/ports";
@@ -79,6 +79,7 @@ export default function Home() {
   const [toastsShown, setToastsShown] = useState(false);
   const [conflictEvents, setConflictEvents] = useState<ConflictEvent[]>([]);
   const [disasterEvents, setDisasterEvents] = useState<DisasterEvent[]>([]);
+  const [macroNews, setMacroNews] = useState<NewsArticle[]>([]);
   const [commodityPrices, setCommodityPrices] = useState<CommodityPrices | null>(null);
   const [macroSignals, setMacroSignals] = useState<MacroSignal[]>([]);
   const [feedOpen, setFeedOpen] = useState(false);
@@ -161,6 +162,21 @@ export default function Home() {
       }
     };
     fetchPrices();
+  }, []);
+
+  // Fetch GDELT macro headlines for the feed
+  useEffect(() => {
+    const fetchMacroNews = async () => {
+      try {
+        const res = await fetch("/api/macro-news");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        setMacroNews(data.articles ?? []);
+      } catch (err) {
+        console.error("[index] Failed to fetch macro news:", err);
+      }
+    };
+    fetchMacroNews();
   }, []);
 
   // Fetch disaster events (USGS + GDACS + FIRMS)
@@ -417,6 +433,7 @@ export default function Home() {
           onToggle={() => setFeedOpen((o) => !o)}
           conflictEvents={conflictEvents}
           disasterEvents={disasterEvents}
+          macroNews={macroNews}
           cache={cache}
           onItemClick={(lat, lng, chokepointId) => {
             if (chokepointId) {
