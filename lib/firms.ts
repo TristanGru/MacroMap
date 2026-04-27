@@ -1,14 +1,16 @@
 import type { DisasterEvent, DisasterSeverity } from "@/lib/types";
 import { nearestChokepoint } from "@/lib/acled";
 
-const MAJOR_FIRE_MIN_MAX_FRP = 100;
-const MAJOR_FIRE_MIN_TOTAL_FRP = 300;
-const MAJOR_FIRE_MIN_DETECTIONS = 25;
-const MAJOR_FIRE_MIN_HIGH_CONFIDENCE_DETECTIONS = 8;
-const US_FIRE_MIN_MAX_FRP = 150;
-const US_FIRE_MIN_TOTAL_FRP = 600;
-const US_FIRE_MIN_DETECTIONS = 30;
-const US_FIRE_MIN_HIGH_CONFIDENCE_DETECTIONS = 10;
+const CLUSTER_CELL_DEGREES = 4;
+const MAX_WILDFIRE_EVENTS = 12;
+const MAJOR_FIRE_MIN_MAX_FRP = 300;
+const MAJOR_FIRE_MIN_TOTAL_FRP = 2000;
+const MAJOR_FIRE_MIN_DETECTIONS = 80;
+const MAJOR_FIRE_MIN_HIGH_CONFIDENCE_DETECTIONS = 25;
+const US_FIRE_MIN_MAX_FRP = 250;
+const US_FIRE_MIN_TOTAL_FRP = 1000;
+const US_FIRE_MIN_DETECTIONS = 50;
+const US_FIRE_MIN_HIGH_CONFIDENCE_DETECTIONS = 15;
 
 interface FIRMSPoint {
   latitude: string;
@@ -16,6 +18,13 @@ interface FIRMSPoint {
   acq_date: string;
   confidence: string; // "l" | "n" | "h"
   frp: string;        // Fire Radiative Power (MW)
+}
+
+interface FireMetrics {
+  maxFrp: number;
+  totalFrp: number;
+  highConfidenceCount: number;
+  score: number;
 }
 
 function regionFor(lat: number, lng: number): string {
@@ -31,35 +40,38 @@ function regionFor(lat: number, lng: number): string {
   return "Global";
 }
 
-function isMaterialFireCluster(pts: FIRMSPoint[], region: string): boolean {
+function fireMetrics(pts: FIRMSPoint[]): FireMetrics {
   const frps = pts.map((p) => parseFloat(p.frp) || 0);
   const maxFrp = Math.max(...frps);
   const totalFrp = frps.reduce((sum, frp) => sum + frp, 0);
   const highConfidenceCount = pts.filter((p) => p.confidence === "h").length;
 
+  return {
+    maxFrp,
+    totalFrp,
+    highConfidenceCount,
+    score: maxFrp * 4 + totalFrp + pts.length * 20 + highConfidenceCount * 80,
+  };
+}
+
+function isMaterialFireCluster(pts: FIRMSPoint[], region: string, metrics: FireMetrics): boolean {
   if (region === "United States" || region === "North America") {
     return (
-      maxFrp >= US_FIRE_MIN_MAX_FRP ||
-      totalFrp >= US_FIRE_MIN_TOTAL_FRP ||
-      pts.length >= US_FIRE_MIN_DETECTIONS ||
-      highConfidenceCount >= US_FIRE_MIN_HIGH_CONFIDENCE_DETECTIONS
+      metrics.maxFrp >= US_FIRE_MIN_MAX_FRP ||
+      (metrics.totalFrp >= US_FIRE_MIN_TOTAL_FRP && pts.length >= 20) ||
+      (pts.length >= US_FIRE_MIN_DETECTIONS && metrics.highConfidenceCount >= US_FIRE_MIN_HIGH_CONFIDENCE_DETECTIONS)
     );
   }
 
   return (
-    maxFrp >= MAJOR_FIRE_MIN_MAX_FRP ||
-    totalFrp >= MAJOR_FIRE_MIN_TOTAL_FRP ||
-    pts.length >= MAJOR_FIRE_MIN_DETECTIONS ||
-    highConfidenceCount >= MAJOR_FIRE_MIN_HIGH_CONFIDENCE_DETECTIONS
+    metrics.maxFrp >= MAJOR_FIRE_MIN_MAX_FRP ||
+    (metrics.totalFrp >= MAJOR_FIRE_MIN_TOTAL_FRP && pts.length >= 25) ||
+    (pts.length >= MAJOR_FIRE_MIN_DETECTIONS && metrics.highConfidenceCount >= MAJOR_FIRE_MIN_HIGH_CONFIDENCE_DETECTIONS)
   );
 }
 
-function severityForCluster(pts: FIRMSPoint[]): DisasterSeverity {
-  const frps = pts.map((p) => parseFloat(p.frp) || 0);
-  const maxFrp = Math.max(...frps);
-  const totalFrp = frps.reduce((sum, frp) => sum + frp, 0);
-
-  if (maxFrp >= 500 || (totalFrp >= 1500 && pts.length >= 25)) return "alert";
+function severityForCluster(pts: FIRMSPoint[], metrics: FireMetrics): DisasterSeverity {
+  if (metrics.maxFrp >= 750 || (metrics.totalFrp >= 4000 && pts.length >= 40)) return "alert";
   return "warning";
 }
 
@@ -103,8 +115,7 @@ async function fetchHemisphere(
 /**
  * Fetches major active wildfire clusters from NASA FIRMS (VIIRS SNPP NRT, last 2 days).
  * The app accepts all regions in the FIRMS world query, clusters detections into
- * 2-degree cells, then returns material clusters. The global threshold stays
- * high to avoid noise, while North America is more permissive so US fires show.
+ * 4-degree cells, then returns only the highest-impact material clusters.
  */
 export async function fetchWildfires(): Promise<DisasterEvent[]> {
   const mapKey = process.env.FIRMS_MAP_KEY;
@@ -132,36 +143,42 @@ export async function fetchWildfires(): Promise<DisasterEvent[]> {
   for (const p of validPoints) {
     const lat = parseFloat(p.latitude);
     const lng = parseFloat(p.longitude);
-    const cell = `${Math.round(lat / 2) * 2},${Math.round(lng / 2) * 2}`;
+    const cell = `${Math.round(lat / CLUSTER_CELL_DEGREES) * CLUSTER_CELL_DEGREES},${Math.round(lng / CLUSTER_CELL_DEGREES) * CLUSTER_CELL_DEGREES}`;
     if (!clusters.has(cell)) clusters.set(cell, { pts: [], region: regionFor(lat, lng) });
     clusters.get(cell)!.pts.push(p);
   }
 
-  const events: DisasterEvent[] = [];
+  const events: Array<DisasterEvent & { fireScore: number }> = [];
   for (const [cell, { pts, region }] of clusters) {
-    if (!isMaterialFireCluster(pts, region)) continue;
+    const metrics = fireMetrics(pts);
+    if (!isMaterialFireCluster(pts, region, metrics)) continue;
 
     const avgLat = pts.reduce((s, p) => s + parseFloat(p.latitude), 0) / pts.length;
     const avgLng = pts.reduce((s, p) => s + parseFloat(p.longitude), 0) / pts.length;
-    const frps = pts.map((p) => parseFloat(p.frp) || 0);
-    const maxFrp = Math.max(...frps);
-    const totalFrp = frps.reduce((sum, frp) => sum + frp, 0);
     const nearest = nearestChokepoint(avgLat, avgLng);
 
     events.push({
       id: `firms-${cell}-${pts[0].acq_date}`,
       type: "wildfire",
-      severity: severityForCluster(pts),
+      severity: severityForCluster(pts, metrics),
       lat: avgLat,
       lng: avgLng,
       title: `Wildfire cluster - ${region}`,
-      description: `${pts.length} active detections - max FRP ${maxFrp.toFixed(0)} MW - total FRP ${totalFrp.toFixed(0)} MW`,
+      description: `${pts.length} active detections - max FRP ${metrics.maxFrp.toFixed(0)} MW - total FRP ${metrics.totalFrp.toFixed(0)} MW`,
       date: new Date(pts[0].acq_date).toISOString(),
       nearestChokepointId: nearest?.id ?? null,
       distanceKm: nearest?.distanceKm ?? null,
       source: "firms" as const,
+      fireScore: metrics.score,
     });
   }
 
-  return events;
+  return events
+    .sort((a, b) => b.fireScore - a.fireScore)
+    .slice(0, MAX_WILDFIRE_EVENTS)
+    .map((event) => {
+      const { fireScore, ...disasterEvent } = event;
+      void fireScore;
+      return disasterEvent;
+    });
 }
