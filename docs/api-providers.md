@@ -18,6 +18,7 @@ Working notes for Macro Map data sources. Do not store API keys here; keep secre
 | Oil Price API | Supplemental Brent, WTI, gas, wheat, copper prices | API key | `OIL_PRICE_API_KEY` |
 | FRED | Macro indicators | Free API key | `FRED_API_KEY` |
 | USDA NASS QuickStats | Crop/agriculture signals | Free API key | `USDA_NASS_API_KEY` |
+| UN Comtrade | Country trade products and partners in country profiles | Free Basic Individual API key | `UN_COMTRADE_API_KEY` |
 | Trading Economics | Baltic Dry Index fallback/reference | Optional free tier | currently not in Vercel list unless re-enabled |
 | Upstash Redis / Vercel KV | Server cache for prices, disruptions, events, PortWatch snapshots | Vercel integration | `KV_REST_API_URL`, `KV_REST_API_TOKEN`, etc. |
 
@@ -33,6 +34,7 @@ Working notes for Macro Map data sources. Do not store API keys here; keep secre
 | UNCTADstat | Maritime transport and trade context | Mostly public datasets | https://unctadstat.unctad.org/ |
 | UN Comtrade | Commodity trade flows | Public/free with limits | https://comtradeplus.un.org/ |
 | World Bank WITS | Trade flow cross-checks | Public | https://wits.worldbank.org/ |
+| Observatory of Economic Complexity | Country/product trade profiles, top partners, export/import composition | Many historical endpoints available without auth; latest/pro features require subscription | https://oec.world/en/resources/api |
 | IEA Critical Minerals Data Explorer | Critical mineral production/refining/trade context | Public | https://www.iea.org/data-and-statistics/data-tools/critical-minerals-data-explorer |
 | USGS Mineral Commodity Summaries | Minerals supply context | Public | https://www.usgs.gov/science/science-explorer/minerals/mineral-commodities |
 
@@ -54,6 +56,24 @@ High-quality next additions:
 - Middle East chokepoint cross-checks: use the IEA Middle East Maritime Chokepoints Monitor as a secondary reference for Hormuz, Bab-el-Mandeb, Red Sea/Suez, and regional diversion context.
 
 Implementation note: prefer PortWatch official events over text-only GDELT evidence when both are available. Use news as supporting context, not the sole reason to mark a chokepoint or port disrupted.
+
+## Trade Data Next Addition
+
+Best near-term fit: Observatory of Economic Complexity API.
+
+- Why: country/product trade profiles map cleanly to the new country panels: top exports, imports, destinations, origins, and product composition.
+- Cost/auth: OEC documents unauthenticated access for many basic/historical trade-flow and metadata queries. Latest data and advanced/subnational endpoints move to Pro/Premium.
+- Product fit: use it to replace curated country exports/imports/trade partners with server-fetched baseline data, cached in KV, while keeping our curated macro interpretation layer.
+- Suggested env var if we later need authenticated calls: `OEC_API_TOKEN`.
+
+Secondary option: UN Comtrade API.
+
+- Why: official source for detailed merchandise trade by reporter, partner, product, and flow.
+- Cost/auth: free API product exists after developer registration; third-party wrapper docs describe 500 calls/day and up to 100,000 records/call with a valid token.
+- Tradeoff: more official and granular, but more awkward to integrate for a polished UX than OEC country/profile-style endpoints.
+- Suggested env var: `UN_COMTRADE_API_KEY`.
+
+WITS remains useful for country-level trade-stat cross-checks and tariff/NTM context, but its API docs emphasize aggregate trade/tariff indicators more than the country-profile UX we want first.
 
 ## Notes
 

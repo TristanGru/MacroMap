@@ -1,24 +1,10 @@
 import type { DisasterEvent, DisasterSeverity } from "@/lib/types";
 import { nearestChokepoint } from "@/lib/acled";
 
-// Agricultural + pipeline regions to monitor for wildfires (client-side filter)
-const REGIONS = [
-  { name: "US Great Plains",      latMin: 30, latMax: 50, lngMin: -105, lngMax: -85 },
-  { name: "Ukraine / Black Sea",  latMin: 44, latMax: 52, lngMin:   22, lngMax:  42 },
-  { name: "Australia Wheat Belt", latMin: -40, latMax: -20, lngMin: 110, lngMax: 155 },
-  { name: "Argentina Pampas",     latMin: -40, latMax: -25, lngMin: -70, lngMax: -55 },
-  { name: "Brazil Cerrado",       latMin: -25, latMax:  -5, lngMin: -60, lngMax: -40 },
-  { name: "Siberia / W. Russia",  latMin:  50, latMax:  70, lngMin:  50, lngMax:  90 },
-];
-
-function regionFor(lat: number, lng: number): string | null {
-  for (const r of REGIONS) {
-    if (lat >= r.latMin && lat <= r.latMax && lng >= r.lngMin && lng <= r.lngMax) {
-      return r.name;
-    }
-  }
-  return null;
-}
+const MAJOR_FIRE_MIN_MAX_FRP = 100;
+const MAJOR_FIRE_MIN_TOTAL_FRP = 300;
+const MAJOR_FIRE_MIN_DETECTIONS = 25;
+const MAJOR_FIRE_MIN_HIGH_CONFIDENCE_DETECTIONS = 8;
 
 interface FIRMSPoint {
   latitude: string;
@@ -28,17 +14,51 @@ interface FIRMSPoint {
   frp: string;        // Fire Radiative Power (MW)
 }
 
+function regionFor(lat: number, lng: number): string {
+  if (lat >= 15 && lng >= -170 && lng <= -50) return "North America";
+  if (lat < 15 && lat >= -60 && lng >= -90 && lng <= -30) return "South America";
+  if (lat >= 35 && lng >= -15 && lng <= 45) return "Europe / Mediterranean";
+  if (lat >= 5 && lat < 35 && lng >= -20 && lng <= 55) return "North Africa / Middle East";
+  if (lat < 5 && lat >= -35 && lng >= -20 && lng <= 55) return "Sub-Saharan Africa";
+  if (lat >= 35 && lng > 45 && lng <= 180) return "Northern Asia";
+  if (lat >= -10 && lat < 35 && lng > 55 && lng <= 150) return "South / Southeast Asia";
+  if (lat < -10 && lng >= 110 && lng <= 180) return "Australia / Oceania";
+  return "Global";
+}
+
+function isMajorFireCluster(pts: FIRMSPoint[]): boolean {
+  const frps = pts.map((p) => parseFloat(p.frp) || 0);
+  const maxFrp = Math.max(...frps);
+  const totalFrp = frps.reduce((sum, frp) => sum + frp, 0);
+  const highConfidenceCount = pts.filter((p) => p.confidence === "h").length;
+
+  return (
+    maxFrp >= MAJOR_FIRE_MIN_MAX_FRP ||
+    totalFrp >= MAJOR_FIRE_MIN_TOTAL_FRP ||
+    pts.length >= MAJOR_FIRE_MIN_DETECTIONS ||
+    highConfidenceCount >= MAJOR_FIRE_MIN_HIGH_CONFIDENCE_DETECTIONS
+  );
+}
+
+function severityForCluster(pts: FIRMSPoint[]): DisasterSeverity {
+  const frps = pts.map((p) => parseFloat(p.frp) || 0);
+  const maxFrp = Math.max(...frps);
+  const totalFrp = frps.reduce((sum, frp) => sum + frp, 0);
+
+  if (maxFrp >= 500 || (totalFrp >= 1500 && pts.length >= 25)) return "alert";
+  return "warning";
+}
+
 /**
  * Query FIRMS for one hemisphere.
- * FIRMS rejects bounding boxes where both W and E are negative —
- * work around this by querying in two halves (W hemi: -180→0, E hemi: 0→180).
+ * FIRMS rejects bounding boxes where both W and E are negative, so the caller
+ * queries the western and eastern hemispheres separately.
  */
 async function fetchHemisphere(
   west: number,
   east: number,
   mapKey: string,
 ): Promise<FIRMSPoint[]> {
-  // Use CSV endpoint — more reliable; parse manually
   const area = `${west},-70,${east},80`;
   const url = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/VIIRS_SNPP_NRT/${area}/2`;
 
@@ -47,18 +67,18 @@ async function fetchHemisphere(
     if (!res.ok) return [];
     const text = await res.text();
     const lines = text.trim().split("\n");
-    if (lines.length < 2) return []; // header only = no fires
+    if (lines.length < 2) return [];
 
     // CSV header: latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,
-    //             satellite,instrument,confidence,version,bright_ti5,frp,daynight
+    // satellite,instrument,confidence,version,bright_ti5,frp,daynight
     return lines.slice(1).map((line) => {
       const cols = line.split(",");
       return {
-        latitude:   cols[0] ?? "",
-        longitude:  cols[1] ?? "",
-        acq_date:   cols[5] ?? "",
+        latitude: cols[0] ?? "",
+        longitude: cols[1] ?? "",
+        acq_date: cols[5] ?? "",
         confidence: cols[9] ?? "n",
-        frp:        cols[12] ?? "0",
+        frp: cols[12] ?? "0",
       };
     });
   } catch {
@@ -67,68 +87,61 @@ async function fetchHemisphere(
 }
 
 /**
- * Fetches active wildfire clusters from NASA FIRMS (VIIRS SNPP NRT, last 2 days).
- * Queries in two hemisphere halves to avoid the FIRMS API bug with all-negative
- * longitude bounding boxes. Clusters into 1-degree grid cells.
- * Requires free FIRMS_MAP_KEY from https://firms.modaps.eosdis.nasa.gov/api/map_key/
- * Returns [] if FIRMS_MAP_KEY not set.
+ * Fetches major active wildfire clusters from NASA FIRMS (VIIRS SNPP NRT, last 2 days).
+ * The app accepts all regions in the FIRMS world query, clusters detections into
+ * 2-degree cells, then only returns material clusters so tiny heat detections do
+ * not flood the map or feed.
  */
 export async function fetchWildfires(): Promise<DisasterEvent[]> {
   const mapKey = process.env.FIRMS_MAP_KEY;
   if (!mapKey) {
-    console.warn("[firms] FIRMS_MAP_KEY not set — skipping wildfire fetch");
+    console.warn("[firms] FIRMS_MAP_KEY not set - skipping wildfire fetch");
     return [];
   }
 
-  // Two hemisphere queries run in parallel
   const [west, east] = await Promise.all([
     fetchHemisphere(-180, 0, mapKey),
     fetchHemisphere(0, 180, mapKey),
   ]);
   const all = [...west, ...east];
 
-  // Filter to monitored regions; skip low confidence
-  const inRegion = all.filter((p) => {
+  const validPoints = all.filter((p) => {
     if (p.confidence === "l") return false;
     const lat = parseFloat(p.latitude);
     const lng = parseFloat(p.longitude);
-    if (isNaN(lat) || isNaN(lng)) return false;
-    return regionFor(lat, lng) !== null;
+    return !isNaN(lat) && !isNaN(lng);
   });
 
-  if (inRegion.length === 0) return [];
+  if (validPoints.length === 0) return [];
 
-  // Cluster into 2-degree grid cells to keep marker count manageable
   const clusters = new Map<string, { pts: FIRMSPoint[]; region: string }>();
-  for (const p of inRegion) {
+  for (const p of validPoints) {
     const lat = parseFloat(p.latitude);
     const lng = parseFloat(p.longitude);
-    const region = regionFor(lat, lng)!;
     const cell = `${Math.round(lat / 2) * 2},${Math.round(lng / 2) * 2}`;
-    if (!clusters.has(cell)) clusters.set(cell, { pts: [], region });
+    if (!clusters.has(cell)) clusters.set(cell, { pts: [], region: regionFor(lat, lng) });
     clusters.get(cell)!.pts.push(p);
   }
 
   const events: DisasterEvent[] = [];
   for (const [cell, { pts, region }] of clusters) {
+    if (!isMajorFireCluster(pts)) continue;
+
     const avgLat = pts.reduce((s, p) => s + parseFloat(p.latitude), 0) / pts.length;
     const avgLng = pts.reduce((s, p) => s + parseFloat(p.longitude), 0) / pts.length;
-    const maxFrp = Math.max(...pts.map((p) => parseFloat(p.frp) || 0));
+    const frps = pts.map((p) => parseFloat(p.frp) || 0);
+    const maxFrp = Math.max(...frps);
+    const totalFrp = frps.reduce((sum, frp) => sum + frp, 0);
     const nearest = nearestChokepoint(avgLat, avgLng);
-    const severity: DisasterSeverity =
-      maxFrp > 500 ? "alert" : maxFrp > 100 ? "warning" : "watch";
-
-    // Only surface warning+ clusters to avoid globe clutter
-    if (severity === "watch" && pts.length < 5) continue;
 
     events.push({
       id: `firms-${cell}-${pts[0].acq_date}`,
       type: "wildfire",
-      severity,
+      severity: severityForCluster(pts),
       lat: avgLat,
       lng: avgLng,
-      title: `Wildfire cluster — ${region}`,
-      description: `${pts.length} active detections · max FRP ${maxFrp.toFixed(0)} MW`,
+      title: `Wildfire cluster - ${region}`,
+      description: `${pts.length} active detections - max FRP ${maxFrp.toFixed(0)} MW - total FRP ${totalFrp.toFixed(0)} MW`,
       date: new Date(pts[0].acq_date).toISOString(),
       nearestChokepointId: nearest?.id ?? null,
       distanceKm: nearest?.distanceKm ?? null,

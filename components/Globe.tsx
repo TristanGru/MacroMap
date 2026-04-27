@@ -18,7 +18,6 @@ import { CHOKEPOINTS } from "@/data/chokepoints";
 import { ROUTES } from "@/data/routes";
 import { PORTS } from "@/data/ports";
 import { normalizeDisasterEvents } from "@/lib/disaster-coordinates";
-import { isMacroRelevantWildfire } from "@/lib/agriculture-regions";
 import countryBorders from "@/data/country-borders.json";
 
 // ── Color maps ──────────────────────────────────────────────────────────────
@@ -180,13 +179,16 @@ interface PortPoint {
 type GlobePoint = ChokepointPoint | PortPoint;
 
 interface CountryFeature {
+  bbox?: number[];
   properties?: {
     ADMIN?: string;
     NAME?: string;
+    ISO_A3?: string;
+    ADM0_A3?: string;
   };
 }
 
-const COUNTRY_BORDER_FEATURES = (countryBorders as { features: CountryFeature[] }).features;
+const COUNTRY_BORDER_FEATURES = (countryBorders as unknown as { features: CountryFeature[] }).features;
 
 const PORT_COLORS = {
   origin: "#f59e0b",
@@ -306,6 +308,7 @@ interface GlobeProps {
   viewResetKey?: number;
   onChokepointClick: (chokepoint: Chokepoint) => void;
   onRouteFocusChange: (target: RouteFocusTarget | null) => void;
+  onCountryClick?: (country: { name: string; iso3: string; bbox: [number, number, number, number] | null }) => void;
   onDisasterClick?: (event: DisasterEvent) => void;
   onGlobeReady: () => void;
 }
@@ -335,6 +338,7 @@ export default function GlobeComponent({
   viewResetKey = 0,
   onChokepointClick,
   onRouteFocusChange,
+  onCountryClick,
   onDisasterClick,
   onGlobeReady,
 }: GlobeProps) {
@@ -569,18 +573,12 @@ export default function GlobeComponent({
 
   // ── Label data: major events (fatalities > 10 or < 200km from CP) ────────
 
-  const labelData = useMemo(() => {
-    return conflictEvents.filter(
-      (e) => e.fatalities > 10 || (e.distanceKm !== null && e.distanceKm < 200)
-    );
-  }, [conflictEvents]);
-
   // ── Filter disaster events — wildfires only at warning+ severity ────────
 
   const filteredDisasterEvents = useMemo(() => {
     return normalizeDisasterEvents(disasterEvents).filter((e) => {
       if (e.type === "wildfire") {
-        return e.severity === "warning" || e.severity === "alert" || isMacroRelevantWildfire(e);
+        return e.severity === "warning" || e.severity === "alert";
       }
       return true;
     });
@@ -720,6 +718,16 @@ export default function GlobeComponent({
           const feature = d as CountryFeature;
           return feature.properties?.ADMIN || feature.properties?.NAME || "";
         }}
+        onPolygonClick={(d) => {
+          const feature = d as CountryFeature;
+          const name = feature.properties?.ADMIN || feature.properties?.NAME || "";
+          const iso3 = feature.properties?.ISO_A3 || feature.properties?.ADM0_A3 || "";
+          const bbox =
+            feature.bbox && feature.bbox.length >= 4
+              ? [feature.bbox[0], feature.bbox[1], feature.bbox[2], feature.bbox[3]] as [number, number, number, number]
+              : null;
+          if (name && iso3) onCountryClick?.({ name, iso3, bbox });
+        }}
         polygonsTransitionDuration={0}
         // Arcs — animated shipping routes (BL-001 to BL-004)
         arcsData={arcSegments}
@@ -770,10 +778,10 @@ export default function GlobeComponent({
         ringPropagationSpeed={0.8}
         ringRepeatPeriod={2000}
         // Labels — major events
-        labelsData={labelData}
+        labelsData={[]}
         labelLat={(d) => (d as ConflictEvent).lat}
         labelLng={(d) => (d as ConflictEvent).lng}
-        labelText={(d) => (d as ConflictEvent).description.slice(0, 40)}
+        labelText={() => ""}
         labelColor={() => "#fbbf24"}
         labelSize={0.4}
         labelDotRadius={0.3}

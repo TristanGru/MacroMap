@@ -20,6 +20,8 @@ export type RouteStatus = "primary" | "diversion" | "planned" | "historical";
 export type RouteAccuracy = "observed" | "approximate";
 export type RouteFocusKind = "port" | "chokepoint";
 
+export type CountryPosture = "producer" | "consumer" | "transit" | "manufacturing" | "financial" | "mixed";
+
 export interface RouteFocusTarget {
   kind: RouteFocusKind;
   id: string;
@@ -85,6 +87,42 @@ export interface ShippingRoute {
   chokepointIds: string[];
   /** Default 10 if unknown */
   flowMbpd: number;
+}
+
+export interface CountryProfile {
+  id: string;
+  iso3: string;
+  name: string;
+  aliases: string[];
+  posture: CountryPosture[];
+  role: string;
+  majorExports: string[];
+  majorImports: string[];
+  tradePartners: string[];
+  tradeReliances: string[];
+  macroSensitivity: string[];
+  strategicRisks: string[];
+  resourceTypes: ResourceType[];
+  linkedChokepointIds: string[];
+  linkedPortIds: string[];
+  stats: string[];
+}
+
+export interface CountryTradeItem {
+  name: string;
+  valueUsd: number;
+  code?: string;
+}
+
+export interface CountryTradeData {
+  iso3: string;
+  year: string;
+  source: "UN Comtrade";
+  exports: CountryTradeItem[];
+  imports: CountryTradeItem[];
+  exportPartners: CountryTradeItem[];
+  importPartners: CountryTradeItem[];
+  fetchedAt: string;
 }
 
 export interface NewsArticle {

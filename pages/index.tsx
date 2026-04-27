@@ -9,6 +9,7 @@ import type { DisruptionStateCache, Chokepoint, ResourceType, RouteStatus, Route
 import { CHOKEPOINTS } from "@/data/chokepoints";
 import { ROUTES } from "@/data/routes";
 import { PORTS } from "@/data/ports";
+import { COUNTRY_PROFILE_BY_ISO3, findCountryProfileByName } from "@/data/country-profiles";
 
 // Globe uses Three.js canvas — browser-only
 const Globe = dynamic(() => import("@/components/Globe"), { ssr: false });
@@ -23,6 +24,7 @@ const MapLayerToggle = dynamic(() => import("@/components/MapLayerToggle"), { ss
 const PriceChart = dynamic(() => import("@/components/PriceChart"), { ssr: false });
 const OnboardingTooltip = dynamic(() => import("@/components/OnboardingTooltip"), { ssr: false });
 const EventFeed = dynamic(() => import("@/components/EventFeed"), { ssr: false });
+const CountryProfilePanel = dynamic(() => import("@/components/CountryProfilePanel"), { ssr: false });
 
 const ALL_RESOURCE_TYPES: ResourceType[] = [
   "oil", "gas", "lng", "container", "copper", "grain", "coal",
@@ -32,6 +34,12 @@ const ALL_RESOURCE_TYPES: ResourceType[] = [
 const ALL_ROUTE_STATUSES: RouteStatus[] = ["primary", "diversion", "planned", "historical"];
 const DEFAULT_RESOURCE_TYPES: ResourceType[] = ["oil"];
 const DEFAULT_ROUTE_STATUSES: RouteStatus[] = ["primary"];
+
+interface SelectedCountry {
+  iso3: string;
+  name: string;
+  bbox: [number, number, number, number] | null;
+}
 
 function parseFilterParam(param: string | undefined): ResourceType[] {
   if (!param) return DEFAULT_RESOURCE_TYPES;
@@ -84,6 +92,7 @@ export default function Home() {
   const [macroSignals, setMacroSignals] = useState<MacroSignal[]>([]);
   const [feedOpen, setFeedOpen] = useState(false);
   const [showCountryBorders, setShowCountryBorders] = useState(false);
+  const [selectedCountry, setSelectedCountry] = useState<SelectedCountry | null>(null);
   const [viewResetKey, setViewResetKey] = useState(0);
   const [sourceHealth, setSourceHealth] = useState<Record<string, SourceHealthState>>({
     risk: "loading",
@@ -289,11 +298,13 @@ export default function Home() {
   );
 
   const handleChokepointClick = useCallback((cp: Chokepoint) => {
+    setSelectedCountry(null);
     setSelectedChokepoint(cp);
     setRouteFocus({ kind: "chokepoint", id: cp.id, name: cp.name });
   }, []);
 
   const handleRouteFocusChange = useCallback((target: RouteFocusTarget | null) => {
+    setSelectedCountry(null);
     setRouteFocus(target);
     if (target?.kind === "chokepoint") {
       setSelectedChokepoint(CHOKEPOINTS.find((cp) => cp.id === target.id) ?? null);
@@ -316,9 +327,18 @@ export default function Home() {
   }, []);
 
   const handleResetView = useCallback(() => {
+    setSelectedCountry(null);
     handleRouteFocusChange(null);
     setViewResetKey((key) => key + 1);
   }, [handleRouteFocusChange]);
+
+  const handleCountryClick = useCallback((country: SelectedCountry) => {
+    const profile = COUNTRY_PROFILE_BY_ISO3[country.iso3] ?? findCountryProfileByName(country.name);
+    if (!profile) return;
+    setSelectedCountry({ ...country, iso3: profile.iso3, name: profile.name });
+    setSelectedChokepoint(null);
+    setRouteFocus(null);
+  }, []);
 
   // Visible routes (for empty state check)
   const visibleRoutes = ROUTES.filter(
@@ -351,6 +371,7 @@ export default function Home() {
           viewResetKey={viewResetKey}
           onChokepointClick={handleChokepointClick}
           onRouteFocusChange={handleRouteFocusChange}
+          onCountryClick={handleCountryClick}
           onGlobeReady={() => setGlobeReady(true)}
         />
       </ErrorBoundary>
@@ -425,6 +446,23 @@ export default function Home() {
         <PortPanel
           port={selectedPort}
           onClose={() => handleRouteFocusChange(null)}
+        />
+      )}
+
+      {globeReady && (
+        <CountryProfilePanel
+          profile={
+            selectedCountry
+              ? COUNTRY_PROFILE_BY_ISO3[selectedCountry.iso3] ?? findCountryProfileByName(selectedCountry.name)
+              : null
+          }
+          bbox={selectedCountry?.bbox ?? null}
+          cache={cache}
+          macroNews={macroNews}
+          conflictEvents={conflictEvents}
+          disasterEvents={disasterEvents}
+          prices={commodityPrices}
+          onClose={() => setSelectedCountry(null)}
         />
       )}
 

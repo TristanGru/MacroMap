@@ -5,11 +5,11 @@ export const HISTORICAL_DISRUPTIONS: HistoricalDisruption[] = [
     id: "suez-ever-given-2021",
     chokepointId: "suez-canal",
     chokepointName: "Suez Canal",
-    title: "Ever Given runs aground; Suez blocked for 6 days",
+    title: "Ever Given (Evergreen) runs aground; Suez blocked for 6 days",
     dateStart: "2021-03-23",
     dateEnd: "2021-03-29",
     description:
-      "The 400m container ship Ever Given became lodged diagonally across the Suez Canal, blocking the route from March 23 to March 29. At least 369 vessels were waiting to transit by the time salvage teams refloated the ship.",
+      "The 400m container ship Ever Given, operated by Evergreen Marine, became lodged diagonally across the Suez Canal, blocking the route from March 23 to March 29. At least 369 vessels were waiting to transit by the time salvage teams refloated the ship.",
     oilImpact: "Brent moved modestly; freight delays were the larger impact",
     resourceTypes: ["container", "oil", "gas"],
   },
