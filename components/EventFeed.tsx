@@ -1,11 +1,17 @@
-import React, { useMemo } from "react";
-import type { ConflictEvent, DisruptionStateCache, DisruptionState, DisasterEvent, DisasterType } from "@/lib/types";
+import React, { useMemo, useState } from "react";
+import type {
+  ConflictEvent,
+  DisasterEvent,
+  DisasterType,
+  DisruptionState,
+  DisruptionStateCache,
+} from "@/lib/types";
 import { CHOKEPOINTS } from "@/data/chokepoints";
 
 interface FeedItem {
   id: string;
   type: "conflict" | "article" | "disaster";
-  timestamp: string; // ISO 8601
+  timestamp: string;
   chokepointId: string | null;
   chokepointName: string | null;
   title: string;
@@ -13,17 +19,25 @@ interface FeedItem {
   state: DisruptionState | null;
   lat: number | null;
   lng: number | null;
-  icon?: string;
   accentColor?: string;
+  sourceLabel?: string;
 }
 
-const DISASTER_ICONS: Record<DisasterType, string> = {
-  earthquake: "🌍",
-  storm:      "🌀",
-  wildfire:   "🔥",
-  flood:      "🌊",
-  volcano:    "🌋",
-  drought:    "🌵",
+type FeedTab = "news" | "conflict" | "disasters";
+
+const TAB_LABELS: Record<FeedTab, string> = {
+  news: "Macro News",
+  conflict: "Conflict",
+  disasters: "Disasters",
+};
+
+const DISASTER_LABELS: Record<DisasterType, string> = {
+  earthquake: "Earthquake",
+  storm: "Storm",
+  wildfire: "Wildfire",
+  flood: "Flood",
+  volcano: "Volcano",
+  drought: "Drought",
 };
 
 interface EventFeedProps {
@@ -59,18 +73,74 @@ export default function EventFeed({
   cache,
   onItemClick,
 }: EventFeedProps) {
-  // Build unified feed combining ACLED events + disaster events + GDELT article headlines
-  const feedItems = useMemo<FeedItem[]>(() => {
+  const [activeTab, setActiveTab] = useState<FeedTab>("news");
+
+  const newsItems = useMemo<FeedItem[]>(() => {
+    if (!cache) return [];
     const items: FeedItem[] = [];
 
-    // Disaster events (earthquakes, storms, wildfires, floods, volcanoes, droughts)
+    for (const [id, cpState] of Object.entries(cache.chokepoints)) {
+      const cp = CHOKEPOINTS.find((c) => c.id === id);
+      for (const article of cpState.articles) {
+        items.push({
+          id: `article-${id}-${article.url}`,
+          type: "article",
+          timestamp: article.publishedAt,
+          chokepointId: id,
+          chokepointName: cp?.name ?? id,
+          title: article.title,
+          detail: article.source,
+          state: cpState.state,
+          lat: cp ? cp.coordinates[1] : null,
+          lng: cp ? cp.coordinates[0] : null,
+          sourceLabel: "GDELT",
+        });
+      }
+    }
+
+    items.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+    return items.slice(0, 50);
+  }, [cache]);
+
+  const conflictItems = useMemo<FeedItem[]>(() => {
+    const items: FeedItem[] = [];
+
+    for (const event of conflictEvents) {
+      if (!event.nearestChokepointId) continue;
+      const cp = CHOKEPOINTS.find((c) => c.id === event.nearestChokepointId);
+      const state = cache?.chokepoints[event.nearestChokepointId]?.state ?? null;
+      items.push({
+        id: `acled-${event.id}`,
+        type: "conflict",
+        timestamp: event.date,
+        chokepointId: event.nearestChokepointId,
+        chokepointName: cp?.name ?? event.nearestChokepointId,
+        title: `${event.type} - ${event.country}`,
+        detail: event.description,
+        state,
+        lat: event.lat,
+        lng: event.lng,
+        sourceLabel: "ACLED",
+      });
+    }
+
+    items.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+    return items.slice(0, 50);
+  }, [conflictEvents, cache]);
+
+  const disasterItems = useMemo<FeedItem[]>(() => {
+    const items: FeedItem[] = [];
+
     for (const event of disasterEvents) {
       const cp = event.nearestChokepointId
         ? CHOKEPOINTS.find((c) => c.id === event.nearestChokepointId)
         : null;
       const severityColor =
-        event.severity === "alert" ? "#ef4444" :
-        event.severity === "warning" ? "#f97316" : "#f59e0b";
+        event.severity === "alert"
+          ? "#ef4444"
+          : event.severity === "warning"
+            ? "#f97316"
+            : "#f59e0b";
       items.push({
         id: event.id,
         type: "disaster",
@@ -82,58 +152,23 @@ export default function EventFeed({
         state: null,
         lat: event.lat,
         lng: event.lng,
-        icon: DISASTER_ICONS[event.type] ?? "⚠️",
         accentColor: severityColor,
+        sourceLabel: `${DISASTER_LABELS[event.type] ?? "Disaster"} - ${event.source.toUpperCase()}`,
       });
     }
 
-    // ACLED conflict events — near chokepoints only
-    for (const event of conflictEvents) {
-      if (!event.nearestChokepointId) continue;
-      const cp = CHOKEPOINTS.find((c) => c.id === event.nearestChokepointId);
-      const state = cache?.chokepoints[event.nearestChokepointId]?.state ?? null;
-      items.push({
-        id: `acled-${event.id}`,
-        type: "conflict",
-        timestamp: event.date,
-        chokepointId: event.nearestChokepointId,
-        chokepointName: cp?.name ?? event.nearestChokepointId,
-        title: `${event.type} — ${event.country}`,
-        detail: event.description,
-        state,
-        lat: event.lat,
-        lng: event.lng,
-      });
-    }
-
-    // GDELT article headlines from disrupted/stressed chokepoints
-    if (cache) {
-      for (const [id, cpState] of Object.entries(cache.chokepoints)) {
-        if (cpState.state !== "disrupted" && cpState.state !== "stressed") continue;
-        const cp = CHOKEPOINTS.find((c) => c.id === id);
-        for (const article of cpState.articles.slice(0, 3)) {
-          items.push({
-            id: `article-${id}-${article.url}`,
-            type: "article",
-            timestamp: article.publishedAt,
-            chokepointId: id,
-            chokepointName: cp?.name ?? id,
-            title: article.title,
-            detail: article.source,
-            state: cpState.state,
-            lat: cp ? cp.coordinates[1] : null,
-            lng: cp ? cp.coordinates[0] : null,
-          });
-        }
-      }
-    }
-
-    // Sort newest first
     items.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
     return items.slice(0, 50);
-  }, [conflictEvents, disasterEvents, cache]);
+  }, [disasterEvents]);
 
-  // Toggle button — always visible
+  const tabItems: Record<FeedTab, FeedItem[]> = {
+    news: newsItems,
+    conflict: conflictItems,
+    disasters: disasterItems,
+  };
+  const feedItems = tabItems[activeTab];
+  const totalCount = newsItems.length + conflictItems.length + disasterItems.length;
+
   const toggleButton = (
     <button
       onClick={onToggle}
@@ -165,12 +200,12 @@ export default function EventFeed({
           width: "6px",
           height: "6px",
           borderRadius: "50%",
-          background: feedItems.length > 0 ? "#ef4444" : "#22c55e",
+          background: totalCount > 0 ? "#ef4444" : "#22c55e",
           flexShrink: 0,
         }}
       />
       Feed
-      {feedItems.length > 0 && (
+      {totalCount > 0 && (
         <span
           style={{
             fontFamily: "'JetBrains Mono', monospace",
@@ -178,7 +213,7 @@ export default function EventFeed({
             color: "var(--color-text-muted)",
           }}
         >
-          {feedItems.length}
+          {totalCount}
         </span>
       )}
     </button>
@@ -188,7 +223,6 @@ export default function EventFeed({
     <>
       {toggleButton}
 
-      {/* Feed panel */}
       {open && (
         <div
           style={{
@@ -208,7 +242,6 @@ export default function EventFeed({
           role="feed"
           aria-label="Live geopolitical event feed"
         >
-          {/* Panel header */}
           <div
             style={{
               padding: "16px",
@@ -227,7 +260,7 @@ export default function EventFeed({
                 color: "var(--color-text)",
               }}
             >
-              Live Events
+              {TAB_LABELS[activeTab]}
             </span>
             <span
               style={{
@@ -236,11 +269,33 @@ export default function EventFeed({
                 color: "var(--color-text-muted)",
               }}
             >
-              {feedItems.length} events
+              {feedItems.length} items
             </span>
           </div>
 
-          {/* Feed items */}
+          <div
+            role="tablist"
+            aria-label="Event feed category"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+              gap: "6px",
+              padding: "10px 12px",
+              borderBottom: "1px solid var(--color-border)",
+              flexShrink: 0,
+            }}
+          >
+            {(["news", "conflict", "disasters"] as FeedTab[]).map((tab) => (
+              <FeedTabButton
+                key={tab}
+                label={TAB_LABELS[tab]}
+                count={tabItems[tab].length}
+                selected={activeTab === tab}
+                onClick={() => setActiveTab(tab)}
+              />
+            ))}
+          </div>
+
           {feedItems.length === 0 ? (
             <div
               style={{
@@ -251,10 +306,12 @@ export default function EventFeed({
                 fontSize: "13px",
               }}
             >
-              No active events.
+              {activeTab === "news" ? "No macro news yet." : "No active events."}
               <br />
               <span style={{ fontSize: "11px", opacity: 0.7 }}>
-                Events appear when chokepoints are stressed or disrupted.
+                {activeTab === "news"
+                  ? "GDELT headlines appear after the chokepoint refresh runs."
+                  : "Events appear when source data refreshes."}
               </span>
             </div>
           ) : (
@@ -276,6 +333,48 @@ export default function EventFeed({
   );
 }
 
+function FeedTabButton({
+  label,
+  count,
+  selected,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={selected}
+      onClick={onClick}
+      style={{
+        minWidth: 0,
+        border: selected
+          ? "1px solid var(--color-accent)"
+          : "1px solid var(--color-border-subtle)",
+        borderRadius: "6px",
+        background: selected
+          ? "rgba(0, 212, 255, 0.12)"
+          : "rgba(255, 255, 255, 0.03)",
+        color: selected ? "var(--color-text)" : "var(--color-text-muted)",
+        fontFamily: "'IBM Plex Sans', sans-serif",
+        fontSize: "11px",
+        fontWeight: 600,
+        padding: "7px 6px",
+        cursor: "pointer",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+      }}
+    >
+      {label} {count}
+    </button>
+  );
+}
+
 function FeedItemRow({
   item,
   onClick,
@@ -285,7 +384,6 @@ function FeedItemRow({
 }) {
   const stateColor = item.accentColor ?? (item.state ? STATE_COLORS[item.state] : "#6b7280");
   const isConflict = item.type === "conflict";
-  const isDisaster = item.type === "disaster";
 
   return (
     <div
@@ -297,11 +395,10 @@ function FeedItemRow({
         background: "transparent",
       }}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLDivElement).style.background =
-          "var(--color-surface-hover)";
+        e.currentTarget.style.background = "var(--color-surface-hover)";
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLDivElement).style.background = "transparent";
+        e.currentTarget.style.background = "transparent";
       }}
       role={item.lat !== null ? "button" : undefined}
       tabIndex={item.lat !== null ? 0 : undefined}
@@ -309,7 +406,6 @@ function FeedItemRow({
         if (e.key === "Enter" || e.key === " ") onClick();
       }}
     >
-      {/* Top row: state dot + chokepoint name + time */}
       <div
         style={{
           display: "flex",
@@ -318,19 +414,15 @@ function FeedItemRow({
           marginBottom: "4px",
         }}
       >
-        {isDisaster && item.icon ? (
-          <span style={{ fontSize: "12px", flexShrink: 0, lineHeight: 1 }}>{item.icon}</span>
-        ) : (
-          <span
-            style={{
-              width: "6px",
-              height: "6px",
-              borderRadius: "50%",
-              background: isConflict ? "#ef4444" : stateColor,
-              flexShrink: 0,
-            }}
-          />
-        )}
+        <span
+          style={{
+            width: "6px",
+            height: "6px",
+            borderRadius: "50%",
+            background: isConflict ? "#ef4444" : stateColor,
+            flexShrink: 0,
+          }}
+        />
         <span
           style={{
             fontFamily: "'IBM Plex Sans', sans-serif",
@@ -343,7 +435,7 @@ function FeedItemRow({
             whiteSpace: "nowrap",
           }}
         >
-          {item.chokepointName ?? "Unknown"}
+          {item.chokepointName ?? item.sourceLabel ?? "Unmapped"}
         </span>
         <span
           style={{
@@ -357,7 +449,6 @@ function FeedItemRow({
         </span>
       </div>
 
-      {/* Title */}
       <div
         style={{
           fontFamily: "'IBM Plex Sans', sans-serif",
@@ -374,7 +465,6 @@ function FeedItemRow({
         {item.title}
       </div>
 
-      {/* Detail / source */}
       <div
         style={{
           fontFamily: "'IBM Plex Sans', sans-serif",
@@ -385,7 +475,7 @@ function FeedItemRow({
           whiteSpace: "nowrap",
         }}
       >
-        {item.detail}
+        {item.sourceLabel ? `${item.sourceLabel} - ${item.detail}` : item.detail}
       </div>
     </div>
   );
