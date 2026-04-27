@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import type {
   ConflictEvent,
   DisasterEvent,
@@ -79,6 +79,12 @@ export default function EventFeed({
   onItemClick,
 }: EventFeedProps) {
   const [activeTab, setActiveTab] = useState<FeedTab>("news");
+  const listRef = useRef<HTMLDivElement | null>(null);
+
+  const switchTab = useCallback((tab: FeedTab) => {
+    setActiveTab(tab);
+    if (listRef.current) listRef.current.scrollTop = 0;
+  }, []);
 
   const newsItems = useMemo<FeedItem[]>(() => {
     const items: FeedItem[] = [];
@@ -288,7 +294,7 @@ export default function EventFeed({
             zIndex: 65,
             display: "flex",
             flexDirection: "column",
-            overflowY: "auto",
+            overflow: "hidden",
           }}
           role="feed"
           aria-label="Live geopolitical event feed"
@@ -334,6 +340,8 @@ export default function EventFeed({
               padding: "10px 12px",
               borderBottom: "1px solid var(--color-border)",
               flexShrink: 0,
+              position: "relative",
+              zIndex: 2,
             }}
           >
             {(["news", "routes", "conflict", "disasters"] as FeedTab[]).map((tab) => (
@@ -343,48 +351,51 @@ export default function EventFeed({
                 count={tabItems[tab].length}
                 selected={activeTab === tab}
                 onClick={(event) => {
+                  event.preventDefault();
                   event.stopPropagation();
-                  setActiveTab(tab);
+                  switchTab(tab);
                 }}
               />
             ))}
           </div>
 
-          {feedItems.length === 0 ? (
-            <div
-              style={{
-                padding: "32px 16px",
-                textAlign: "center",
-                color: "var(--color-text-muted)",
-                fontFamily: "'IBM Plex Sans', sans-serif",
-                fontSize: "13px",
-              }}
-            >
-              {activeTab === "news" ? "No macro news yet." : "No active events."}
-              <br />
-              <span style={{ fontSize: "11px", opacity: 0.7 }}>
-                {activeTab === "news"
-                  ? "GDELT headlines appear after the chokepoint refresh runs."
-                  : "Events appear when source data refreshes."}
-              </span>
-            </div>
-          ) : (
-            feedItems.map((item) => (
-              <FeedItemRow
-                key={item.id}
-                item={item}
-                onClick={() => {
-                  if (item.type === "article" && item.url) {
-                    window.open(item.url, "_blank", "noopener,noreferrer");
-                    return;
-                  }
-                  if (item.lat !== null && item.lng !== null) {
-                    onItemClick(item.lat, item.lng, item.chokepointId);
-                  }
+          <div ref={listRef} style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+            {feedItems.length === 0 ? (
+              <div
+                style={{
+                  padding: "32px 16px",
+                  textAlign: "center",
+                  color: "var(--color-text-muted)",
+                  fontFamily: "'IBM Plex Sans', sans-serif",
+                  fontSize: "13px",
                 }}
-              />
-            ))
-          )}
+              >
+                {activeTab === "news" ? "No macro news yet." : "No active events."}
+                <br />
+                <span style={{ fontSize: "11px", opacity: 0.7 }}>
+                  {activeTab === "news"
+                    ? "GDELT headlines appear after the chokepoint refresh runs."
+                    : "Events appear when source data refreshes."}
+                </span>
+              </div>
+            ) : (
+              feedItems.map((item) => (
+                <FeedItemRow
+                  key={item.id}
+                  item={item}
+                  onClick={() => {
+                    if (item.type === "article" && item.url) {
+                      window.open(item.url, "_blank", "noopener,noreferrer");
+                      return;
+                    }
+                    if (item.lat !== null && item.lng !== null) {
+                      onItemClick(item.lat, item.lng, item.chokepointId);
+                    }
+                  }}
+                />
+              ))
+            )}
+          </div>
         </div>
       )}
     </>
@@ -400,15 +411,22 @@ function FeedTabButton({
   label: string;
   count: number;
   selected: boolean;
-  onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onClick: (event: React.MouseEvent<HTMLButtonElement> | React.PointerEvent<HTMLButtonElement>) => void;
 }) {
   return (
     <button
       type="button"
       role="tab"
       aria-selected={selected}
+      onPointerDown={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onClick(event);
+      }}
       onClick={onClick}
       style={{
+        position: "relative",
+        zIndex: 3,
         minWidth: 0,
         border: selected
           ? "1px solid var(--color-accent)"
