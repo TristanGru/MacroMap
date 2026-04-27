@@ -5,6 +5,7 @@ import { fetchGDACSEvents } from "@/lib/gdacs";
 import { fetchWildfires } from "@/lib/firms";
 import type { DisasterEventsCache } from "@/lib/types";
 import { normalizeDisasterEvents } from "@/lib/disaster-coordinates";
+import { clampWildfireEvents } from "@/lib/disaster-filter";
 
 const CACHE_KEY = "disaster-events";
 const CACHE_TTL_SEC = 900; // 15 min
@@ -21,8 +22,12 @@ export default async function handler(
     // Serve from KV if populated
     const cached = await kvGet<DisasterEventsCache>(CACHE_KEY);
     if (cached) {
+      const responseCache = {
+        ...cached,
+        events: clampWildfireEvents(normalizeDisasterEvents(cached.events)),
+      };
       res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
-      return res.status(200).json(cached);
+      return res.status(200).json(responseCache);
     }
 
     // Cold cache — live fetch (USGS + GDACS need no key; FIRMS degrades gracefully without key)
@@ -41,11 +46,11 @@ export default async function handler(
       return !usgsEarthquakeIds.has(`${event.lat.toFixed(1)},${event.lng.toFixed(1)}`);
     });
 
-    const events = normalizeDisasterEvents([
+    const events = clampWildfireEvents(normalizeDisasterEvents([
       ...earthquakes,
       ...gdacsWithoutDuplicateQuakes,
       ...wildfires,
-    ]).sort(
+    ])).sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
 

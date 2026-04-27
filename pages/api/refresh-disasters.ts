@@ -4,6 +4,8 @@ import { fetchGDACSEvents } from "@/lib/gdacs";
 import { fetchWildfires } from "@/lib/firms";
 import { kvSet } from "@/lib/kv";
 import type { DisasterEventsCache } from "@/lib/types";
+import { normalizeDisasterEvents } from "@/lib/disaster-coordinates";
+import { clampWildfireEvents } from "@/lib/disaster-filter";
 
 export default async function handler(
   req: NextApiRequest,
@@ -30,7 +32,7 @@ export default async function handler(
       fetchWildfires(),
     ]);
 
-    const events = [...earthquakes, ...gdacs, ...wildfires].sort(
+    const events = clampWildfireEvents(normalizeDisasterEvents([...earthquakes, ...gdacs, ...wildfires])).sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
 
