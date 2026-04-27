@@ -3,14 +3,15 @@ import { nearestChokepoint } from "@/lib/acled";
 
 const CLUSTER_CELL_DEGREES = 4;
 const MAX_WILDFIRE_EVENTS = 12;
+const MAX_US_WILDFIRE_EVENTS = 4;
 const MAJOR_FIRE_MIN_MAX_FRP = 300;
 const MAJOR_FIRE_MIN_TOTAL_FRP = 2000;
 const MAJOR_FIRE_MIN_DETECTIONS = 80;
 const MAJOR_FIRE_MIN_HIGH_CONFIDENCE_DETECTIONS = 25;
-const US_FIRE_MIN_MAX_FRP = 250;
-const US_FIRE_MIN_TOTAL_FRP = 1000;
-const US_FIRE_MIN_DETECTIONS = 50;
-const US_FIRE_MIN_HIGH_CONFIDENCE_DETECTIONS = 15;
+const US_FIRE_MIN_MAX_FRP = 125;
+const US_FIRE_MIN_TOTAL_FRP = 500;
+const US_FIRE_MIN_DETECTIONS = 24;
+const US_FIRE_MIN_HIGH_CONFIDENCE_DETECTIONS = 8;
 
 interface FIRMSPoint {
   latitude: string;
@@ -73,6 +74,35 @@ function isMaterialFireCluster(pts: FIRMSPoint[], region: string, metrics: FireM
 function severityForCluster(pts: FIRMSPoint[], metrics: FireMetrics): DisasterSeverity {
   if (metrics.maxFrp >= 750 || (metrics.totalFrp >= 4000 && pts.length >= 40)) return "alert";
   return "warning";
+}
+
+function isUnitedStatesEvent(event: DisasterEvent): boolean {
+  return event.lat >= 24 && event.lat <= 50 && event.lng >= -125 && event.lng <= -66;
+}
+
+function selectWildfireEvents(events: Array<DisasterEvent & { fireScore: number }>): DisasterEvent[] {
+  const sorted = [...events].sort((a, b) => b.fireScore - a.fireScore);
+  const selected = [
+    ...sorted
+      .filter((event) => isUnitedStatesEvent(event))
+      .slice(0, MAX_US_WILDFIRE_EVENTS),
+  ];
+  const selectedIds = new Set(selected.map((event) => event.id));
+
+  for (const event of sorted) {
+    if (selected.length >= MAX_WILDFIRE_EVENTS) break;
+    if (selectedIds.has(event.id)) continue;
+    selected.push(event);
+    selectedIds.add(event.id);
+  }
+
+  return selected
+    .sort((a, b) => b.fireScore - a.fireScore)
+    .map((event) => {
+      const { fireScore, ...disasterEvent } = event;
+      void fireScore;
+      return disasterEvent;
+    });
 }
 
 /**
@@ -173,12 +203,5 @@ export async function fetchWildfires(): Promise<DisasterEvent[]> {
     });
   }
 
-  return events
-    .sort((a, b) => b.fireScore - a.fireScore)
-    .slice(0, MAX_WILDFIRE_EVENTS)
-    .map((event) => {
-      const { fireScore, ...disasterEvent } = event;
-      void fireScore;
-      return disasterEvent;
-    });
+  return selectWildfireEvents(events);
 }
