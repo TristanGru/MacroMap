@@ -18,9 +18,9 @@ function PriceItem({
     (new Date().getTime() - new Date(data.fetchedAt).getTime() > 30 * 60 * 1000);
 
   const deltaColor =
-    data && data.delta24h > 0
+    data && data.delta24h != null && data.delta24h > 0
       ? "var(--color-clean)"
-      : data && data.delta24h < 0
+      : data && data.delta24h != null && data.delta24h < 0
       ? "var(--color-disrupted)"
       : "var(--color-text-muted)";
 
@@ -56,8 +56,8 @@ function PriceItem({
               color: deltaColor,
             }}
           >
-            {data.delta24h > 0 ? "▲" : data.delta24h < 0 ? "▼" : ""}
-            {Math.abs(data.delta24h).toFixed(1)}%
+            {data.delta24h != null ? (data.delta24h > 0 ? "▲" : data.delta24h < 0 ? "▼" : "") : ""}
+            {data.delta24h != null ? `${Math.abs(data.delta24h).toFixed(1)}%` : "—"}
           </span>
         </>
       ) : (

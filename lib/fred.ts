@@ -12,15 +12,16 @@ interface SeriesDef {
 }
 
 const SERIES: SeriesDef[] = [
-  { id: "CPIAUCSL",    label: "US CPI",        unit: "idx",      alertThreshold: 0.5, category: "macro"        },
-  { id: "PFOODINDEXM", label: "Food Index",     unit: "idx",      alertThreshold: 3,   category: "macro"        },
-  { id: "PPIACO",      label: "PPI",            unit: "idx",      alertThreshold: 1,   category: "macro"        },
-  { id: "DHHNGSP",     label: "Henry Hub Gas",  unit: "$/MMBtu",  alertThreshold: 10,  category: "energy"       },
-  { id: "PNRGINDEXM",  label: "Energy Index",   unit: "idx",      alertThreshold: 5,   category: "energy"       },
-  { id: "PWHEAMTUSDM", label: "Wheat",          unit: "$/t",      alertThreshold: 5,   category: "agriculture"  },
-  { id: "PCOPPUSDM",   label: "Copper",         unit: "$/t",      alertThreshold: 5,   category: "agriculture"  },
-  { id: "PMAIZMTUSDM", label: "Corn",           unit: "$/t",      alertThreshold: 8,   category: "agriculture"  },
-  { id: "PSOYBUSDM",   label: "Soybeans",       unit: "$/t",      alertThreshold: 8,   category: "agriculture"  },
+  { id: "CPIAUCSL",    label: "US CPI",              unit: "idx",      alertThreshold: 0.5, category: "macro"        },
+  { id: "PFOODINDEXM", label: "Food Index",           unit: "idx",      alertThreshold: 3,   category: "macro"        },
+  { id: "PPIACO",      label: "PPI",                  unit: "idx",      alertThreshold: 1,   category: "macro"        },
+  { id: "GSCPI",       label: "Supply Chain Pressure", unit: "σ",       alertThreshold: 1,   category: "macro"        },
+  { id: "DHHNGSP",     label: "Henry Hub Gas",        unit: "$/MMBtu",  alertThreshold: 10,  category: "energy"       },
+  { id: "PNRGINDEXM",  label: "Energy Index",         unit: "idx",      alertThreshold: 5,   category: "energy"       },
+  { id: "PWHEAMTUSDM", label: "Wheat",                unit: "$/t",      alertThreshold: 5,   category: "agriculture"  },
+  { id: "PCOPPUSDM",   label: "Copper",               unit: "$/t",      alertThreshold: 5,   category: "energy"       },
+  { id: "PMAIZMTUSDM", label: "Corn",                 unit: "$/t",      alertThreshold: 8,   category: "agriculture"  },
+  { id: "PSOYBUSDM",   label: "Soybeans",             unit: "$/t",      alertThreshold: 8,   category: "agriculture"  },
 ];
 
 interface FREDObservation {
@@ -40,7 +41,7 @@ async function fetchSeries(
     series_id: seriesId,
     api_key: apiKey,
     file_type: "json",
-    limit: "2",
+    limit: "5",
     sort_order: "desc",
   });
   const res = await fetch(`${FRED_BASE}?${params}`, {
@@ -75,15 +76,17 @@ export async function fetchMacroSignals(): Promise<MacroSignal[]> {
     if (result.status !== "fulfilled") continue;
 
     const obs = result.value.filter((o) => o.value !== ".");
-    if (obs.length < 2) continue;
+    if (obs.length < 1) continue;
 
     const current = parseFloat(obs[0].value);
-    const prev = parseFloat(obs[1].value);
-    if (isNaN(current) || isNaN(prev) || prev === 0) continue;
+    if (isNaN(current)) continue;
 
-    const deltaPct = ((current - prev) / Math.abs(prev)) * 100;
+    const prev = obs.length >= 2 ? parseFloat(obs[1].value) : NaN;
+    const deltaPct = (!isNaN(prev) && prev !== 0)
+      ? ((current - prev) / Math.abs(prev)) * 100
+      : null;
     const direction: MacroSignal["direction"] =
-      deltaPct > 0.1 ? "up" : deltaPct < -0.1 ? "down" : "flat";
+      deltaPct == null ? "flat" : deltaPct > 0.1 ? "up" : deltaPct < -0.1 ? "down" : "flat";
 
     signals.push({
       id: s.id,
@@ -93,7 +96,7 @@ export async function fetchMacroSignals(): Promise<MacroSignal[]> {
       unit: s.unit,
       direction,
       date: obs[0].date,
-      isAlert: Math.abs(deltaPct) >= s.alertThreshold,
+      isAlert: deltaPct != null && Math.abs(deltaPct) >= s.alertThreshold,
       category: s.category ?? "macro",
     });
   }

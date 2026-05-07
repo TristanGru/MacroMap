@@ -14,7 +14,7 @@ export type ResourceType =
   | "uranium"
   | "fertilizer";
 
-export type DisruptionState = "clean" | "stressed" | "disrupted" | "unknown";
+export type DisruptionState = "clean" | "elevated" | "stressed" | "disrupted" | "unknown";
 export type TransportMode = "sea" | "pipeline" | "rail" | "road" | "multimodal";
 export type RouteStatus = "primary" | "diversion" | "planned" | "historical";
 export type RouteAccuracy = "observed" | "approximate";
@@ -184,7 +184,7 @@ export interface PricePoint {
 
 export interface PriceData {
   current: number;
-  delta24h: number;
+  delta24h: number | null;
   history30d: PricePoint[];
   fetchedAt: string; // ISO 8601 — for 24h TTL check
 }
@@ -277,7 +277,7 @@ export interface DisasterEvent {
   magnitude?: number; // earthquakes only
   nearestChokepointId: string | null;
   distanceKm: number | null;
-  source: "usgs" | "gdacs" | "firms";
+  source: "usgs" | "gdacs" | "firms" | "openmeteo";
 }
 
 export interface DisasterEventsCache {
@@ -291,7 +291,7 @@ export interface MacroSignal {
   id: string;         // FRED series ID e.g. "CPIAUCSL"
   label: string;      // display name e.g. "US CPI"
   value: number;
-  delta: number;      // % change from previous period
+  delta: number | null;  // % change from previous period; null when only one observation available
   unit: string;       // "%", "$/t", "idx"
   direction: "up" | "down" | "flat";
   date: string;       // YYYY-MM-DD of most recent observation

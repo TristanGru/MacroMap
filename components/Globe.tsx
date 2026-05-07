@@ -41,6 +41,7 @@ const RESOURCE_COLORS: Record<ResourceType, string> = {
 
 const STATE_COLORS: Record<DisruptionState, string> = {
   clean: "#22c55e",
+  elevated: "#06b6d4",
   stressed: "#f59e0b",
   disrupted: "#ef4444",
   unknown: "#6b7280",
@@ -49,18 +50,6 @@ const STATE_COLORS: Record<DisruptionState, string> = {
 /** BL-002: arc color based on worst state across the route's chokepoints */
 function getArcColor(resourceType: ResourceType, state: DisruptionState): string {
   if (state === "disrupted") return "#ef4444";
-  if (state === "unknown") return RESOURCE_COLORS[resourceType];
-  if (state === "stressed") {
-    // 50% lerp between resource color and amber
-    const r1 = parseInt(RESOURCE_COLORS[resourceType].slice(1, 3), 16);
-    const g1 = parseInt(RESOURCE_COLORS[resourceType].slice(3, 5), 16);
-    const b1 = parseInt(RESOURCE_COLORS[resourceType].slice(5, 7), 16);
-    const r2 = 0xf5, g2 = 0x9e, b2 = 0x0b;
-    const r = Math.round((r1 + r2) / 2).toString(16).padStart(2, "0");
-    const g = Math.round((g1 + g2) / 2).toString(16).padStart(2, "0");
-    const b = Math.round((b1 + b2) / 2).toString(16).padStart(2, "0");
-    return `#${r}${g}${b}`;
-  }
   return RESOURCE_COLORS[resourceType];
 }
 
@@ -147,6 +136,8 @@ interface ArcSegment {
   flowMbpd: number;
   dashLength: number;
   dashGap: number;
+  dashInitialGap: number;
+  layer: "route" | "pulse";
   focusMatch: boolean;
   focusDimmed: boolean;
 }
@@ -440,6 +431,8 @@ export default function GlobeComponent({
         ? "disrupted"
         : states.includes("stressed")
         ? "stressed"
+        : states.includes("elevated")
+        ? "elevated"
         : states.includes("unknown")
         ? "unknown"
         : "clean";
@@ -455,31 +448,41 @@ export default function GlobeComponent({
         transportMode === "road" ? 0.2 : 0.3,
         Math.min(isLandMode ? 1.4 : 2.0, route.flowMbpd / 12)
       ) * (routeFocus && focusMatch ? 1.9 : 1);
-      const dashLength =
-        transportMode === "pipeline" ? 0.9 :
-        transportMode === "rail" ? 0.16 :
-        transportMode === "road" ? 0.07 :
-        transportMode === "multimodal" ? 0.24 :
-        0.4;
-      const dashGap =
-        transportMode === "pipeline" ? 0.04 :
-        transportMode === "rail" ? 0.08 :
-        transportMode === "road" ? 0.08 :
-        transportMode === "multimodal" ? 0.14 :
-        0.2;
-      // BL-004: faster animation = more flow (gentler range: 3000–8000ms)
+      const pulseLength =
+        transportMode === "pipeline" ? 0.22 :
+        transportMode === "rail" ? 0.15 :
+        transportMode === "road" ? 0.12 :
+        transportMode === "multimodal" ? 0.18 :
+        0.20;
       const animateTime = isLandMode
-        ? Math.max(5000, 11000 - route.flowMbpd * 80)
-        : Math.max(3000, 8000 - route.flowMbpd * 80);
+        ? Math.max(4000, 9000 - route.flowMbpd * 80)
+        : Math.max(2000, 6000 - route.flowMbpd * 80);
 
       // Keep every waypoint. Skipping intermediate sea waypoints can make globe.gl
       // draw a direct great-circle arc that cuts across land near coasts/straits.
       if (route.waypoints.length < 2) continue;
       const sampled = route.waypoints;
+
+      // Approximate angular length of each segment for staggering comet phase
+      const segLengths = sampled.slice(0, -1).map((wp, i) => {
+        const [lng0, lat0] = wp;
+        const [lng1, lat1] = sampled[i + 1];
+        const dlng = Math.min(Math.abs(lng1 - lng0), 360 - Math.abs(lng1 - lng0));
+        return Math.sqrt((lat1 - lat0) ** 2 + dlng ** 2);
+      });
+      const totalLen = segLengths.reduce((a, b) => a + b, 0) || 1;
+
+      let cumulLen = 0;
       for (let i = 0; i < sampled.length - 1; i++) {
         const [startLng, startLat] = sampled[i];
         const [endLng, endLat] = sampled[i + 1];
-        segments.push({
+        // dashInitialGap offsets each segment so its dot enters at the right
+        // phase — the dot appears to flow from one segment into the next
+        // without waiting at waypoints.
+        const initialGap = 1 - (cumulLen / totalLen);
+        cumulLen += segLengths[i];
+
+        const baseSegment = {
           startLat,
           startLng,
           endLat,
@@ -495,10 +498,26 @@ export default function GlobeComponent({
           routeAccuracy,
           transportMode,
           flowMbpd: route.flowMbpd,
-          dashLength,
-          dashGap,
           focusMatch,
           focusDimmed,
+        };
+        segments.push({
+          ...baseSegment,
+          stroke,
+          animateTime: 0,
+          dashLength: 1,
+          dashGap: 0,
+          dashInitialGap: 0,
+          layer: "route",
+        });
+        segments.push({
+          ...baseSegment,
+          stroke: stroke * 1.4,
+          animateTime,
+          dashLength: 0.04,
+          dashGap: 0.96,
+          dashInitialGap: initialGap % 1,
+          layer: "pulse",
         });
       }
     }
@@ -737,12 +756,20 @@ export default function GlobeComponent({
         arcEndLng={(d) => (d as ArcSegment).endLng}
         arcColor={(d: object) => {
           const arc = d as ArcSegment;
-          return arc.focusDimmed ? toRgba(arc.color, 0.16) : arc.color;
+          if (arc.layer === "pulse") {
+            return arc.focusDimmed
+              ? toRgba(arc.color, 0.06)
+              : toRgba(arc.color, 1.0);
+          }
+          // Gradient: faint at origin → solid at destination (bakes in direction)
+          if (arc.focusDimmed) return [toRgba(arc.color, 0.08), toRgba(arc.color, 0.18)];
+          return [toRgba(arc.color, 0.35), toRgba(arc.color, 0.85)];
         }}
         arcAltitude={(d) => (d as ArcSegment).altitude}
         arcStroke={(d) => (d as ArcSegment).stroke}
         arcDashLength={(d) => (d as ArcSegment).dashLength}
         arcDashGap={(d) => (d as ArcSegment).dashGap}
+        arcDashInitialGap={(d) => (d as ArcSegment).dashInitialGap}
         arcDashAnimateTime={(d) => (d as ArcSegment).animateTime}
         onArcClick={handleArcClick}
         onArcHover={handleArcHover}
@@ -763,6 +790,7 @@ export default function GlobeComponent({
           const state = p.state;
           if (state === "disrupted") return 0.6;
           if (state === "stressed") return 0.5;
+          if (state === "elevated") return 0.46;
           if (state === "clean") return 0.4;
           return 0.3;
         }}
@@ -843,6 +871,7 @@ function TooltipOverlay({ tooltip }: { tooltip: TooltipState }) {
         >
           {point.state === "disrupted" && "⚠️ Disrupted — active threat to shipping"}
           {point.state === "stressed" && "🟡 Stressed — elevated tensions nearby"}
+          {point.state === "elevated" && "Elevated traffic - heavier diversion flow"}
           {point.state === "clean" && "✅ Normal — no significant disruptions"}
           {point.state === "unknown" && "⬜ No data yet"}
         </div>

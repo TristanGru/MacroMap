@@ -38,22 +38,34 @@ function PriceRow({ label, value, delta, unit = "", note }: PriceRowProps) {
         borderBottom: "1px solid var(--color-border-subtle)",
       }}
     >
-      <span
+      <div
         style={{
-          fontFamily: "'IBM Plex Sans', sans-serif",
-          fontSize: "12px",
-          color: "var(--color-text-muted)",
-          flexShrink: 0,
+          display: "flex",
+          flexDirection: "column",
+          flexShrink: 1,
           minWidth: "80px",
+          maxWidth: "130px",
+          overflow: "hidden",
         }}
       >
-        {label}
+        <span
+          style={{
+            fontFamily: "'IBM Plex Sans', sans-serif",
+            fontSize: "12px",
+            color: "var(--color-text-muted)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {label}
+        </span>
         {note && (
-          <span style={{ fontSize: "10px", display: "block", opacity: 0.6 }}>
+          <span style={{ fontFamily: "'IBM Plex Sans', sans-serif", fontSize: "10px", color: "var(--color-text-muted)", opacity: 0.6 }}>
             {note}
           </span>
         )}
-      </span>
+      </div>
       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         <span
           style={{
@@ -64,7 +76,13 @@ function PriceRow({ label, value, delta, unit = "", note }: PriceRowProps) {
             textAlign: "right",
           }}
         >
-          {value !== null ? `${unit}${value.toFixed(2)}` : "—"}
+          {value !== null
+            ? unit.startsWith("$")
+              ? `${unit}${value.toFixed(2)}`
+              : unit
+                ? `${value.toFixed(unit === "σ" ? 2 : 0)} ${unit}`
+                : value.toFixed(2)
+            : "—"}
         </span>
         <span
           style={{
@@ -118,9 +136,10 @@ export default function MacroPanel({ prices, cache, macroSignals = [], disasterE
       return events.findIndex((other) => usAgriRegionFor(other.lat, other.lng) === region) === index;
     });
 
-  // Group macro signals by category
-  const agriSignals = macroSignals.filter((s) => s.category === "agriculture");
-  const energySignals = macroSignals.filter((s) => s.category === "energy");
+  // IDs already rendered in the top prices block — exclude from signal sections to avoid duplication
+  const TOP_PRICES_IDS = new Set(["DHHNGSP", "PWHEAMTUSDM", "PCOPPUSDM"]);
+  const agriSignals = macroSignals.filter((s) => s.category === "agriculture" && !TOP_PRICES_IDS.has(s.id));
+  const energySignals = macroSignals.filter((s) => s.category === "energy" && !TOP_PRICES_IDS.has(s.id));
   const macroSignalsFiltered = macroSignals.filter((s) => s.category === "macro" || !s.category);
   const signalById = new Map(macroSignals.map((s) => [s.id, s]));
   const displayPrices = {
@@ -139,13 +158,16 @@ export default function MacroPanel({ prices, cache, macroSignals = [], disasterE
   const stressedCount = cache
     ? Object.values(cache.chokepoints).filter((s) => s.state === "stressed").length
     : 0;
+  const elevatedCount = cache
+    ? Object.values(cache.chokepoints).filter((s) => s.state === "elevated").length
+    : 0;
 
   const style: React.CSSProperties = {
     position: "fixed",
     left: 16,
     top: 16,
-    bottom: compact ? "auto" : 58,
-    width: collapsed ? "44px" : compact ? "min(280px, calc(100vw - 32px))" : "240px",
+    bottom: compact ? "auto" : 106,
+    width: collapsed ? "44px" : compact ? "min(300px, calc(100vw - 32px))" : "280px",
     height: compact ? (collapsed ? "44px" : "min(520px, calc(100vh - 32px))") : "auto",
     background: "rgba(10, 15, 30, 0.92)",
     backdropFilter: "blur(12px)",
@@ -207,14 +229,16 @@ export default function MacroPanel({ prices, cache, macroSignals = [], disasterE
 
       {/* Content */}
       {!collapsed && (
-        <div style={{ padding: "0 12px 12px", overflowY: "auto", flex: 1, minHeight: 0 }}>
-          {/* BDI */}
-          <PriceRow
-            label="Baltic Dry"
-            value={displayPrices.bdi?.current ?? null}
-            delta={displayPrices.bdi?.delta24h ?? null}
-            note="Daily signal"
-          />
+        <div style={{ padding: "0 12px 12px", overflowY: "auto", overflowX: "hidden", flex: 1, minHeight: 0 }}>
+          {/* BDI — only shown when TRADING_ECONOMICS_KEY is set */}
+          {displayPrices.bdi && (
+            <PriceRow
+              label="Baltic Dry"
+              value={displayPrices.bdi.current}
+              delta={displayPrices.bdi.delta24h}
+              note="Daily signal"
+            />
+          )}
           {/* Oil */}
           <PriceRow
             label="Brent"
@@ -331,7 +355,7 @@ export default function MacroPanel({ prices, cache, macroSignals = [], disasterE
           )}
 
           {/* Active disruptions summary */}
-          {(disruptedCount > 0 || stressedCount > 0) && (
+          {(disruptedCount > 0 || stressedCount > 0 || elevatedCount > 0) && (
             <div
               style={{
                 marginTop: "10px",
@@ -350,14 +374,14 @@ export default function MacroPanel({ prices, cache, macroSignals = [], disasterE
                   marginBottom: "6px",
                 }}
               >
-                Active Disruptions
+                Chokepoint Watch
               </div>
               {cache &&
                 Object.entries(cache.chokepoints)
-                  .filter(([, s]) => s.state === "disrupted" || s.state === "stressed")
+                  .filter(([, s]) => s.state === "disrupted" || s.state === "stressed" || s.state === "elevated")
                   .map(([id, s]) => {
                     const cp = CHOKEPOINTS.find((c) => c.id === id);
-                    const color = s.state === "disrupted" ? "#ef4444" : "#f59e0b";
+                    const color = s.state === "disrupted" ? "#ef4444" : s.state === "stressed" ? "#f59e0b" : "#06b6d4";
                     return (
                       <div
                         key={id}

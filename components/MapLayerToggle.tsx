@@ -21,8 +21,8 @@ export default function MapLayerToggle({
       title={showCountryBorders ? "Hide country borders" : "Show country borders"}
       style={{
         position: "fixed",
-        right: compact ? "16px" : feedOpen ? "376px" : "16px",
-        top: compact ? "58px" : "58px",
+        right: compact ? "16px" : feedOpen ? "492px" : "132px",
+        top: "16px",
         height: "34px",
         borderRadius: "8px",
         border: showCountryBorders ? "1px solid rgba(147, 197, 253, 0.48)" : "1px solid var(--color-border)",

@@ -15,6 +15,7 @@ export default function Document() {
           href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
           rel="stylesheet"
         />
+        <link rel="icon" href="/favicon.png" type="image/png" />
         {/* Prevent Cesium from trying to auto-detect base URL */}
         <meta name="cesium-base-url" content="/cesium" />
       </Head>

@@ -21,6 +21,7 @@ const RouteStatusPills = dynamic(() => import("@/components/RouteStatusPills"), 
 const RouteFocusSearch = dynamic(() => import("@/components/RouteFocusSearch"), { ssr: false });
 const DataSourcesPanel = dynamic(() => import("@/components/DataSourcesPanel"), { ssr: false });
 const MapLayerToggle = dynamic(() => import("@/components/MapLayerToggle"), { ssr: false });
+const MapLegend = dynamic(() => import("@/components/MapLegend"), { ssr: false });
 const PriceChart = dynamic(() => import("@/components/PriceChart"), { ssr: false });
 const OnboardingTooltip = dynamic(() => import("@/components/OnboardingTooltip"), { ssr: false });
 const EventFeed = dynamic(() => import("@/components/EventFeed"), { ssr: false });
@@ -91,7 +92,7 @@ export default function Home() {
   const [commodityPrices, setCommodityPrices] = useState<CommodityPrices | null>(null);
   const [macroSignals, setMacroSignals] = useState<MacroSignal[]>([]);
   const [feedOpen, setFeedOpen] = useState(false);
-  const [showCountryBorders, setShowCountryBorders] = useState(false);
+  const [showCountryBorders, setShowCountryBorders] = useState(true);
   const [selectedCountry, setSelectedCountry] = useState<SelectedCountry | null>(null);
   const [viewResetKey, setViewResetKey] = useState(0);
   const [sourceHealth, setSourceHealth] = useState<Record<string, SourceHealthState>>({
@@ -108,19 +109,25 @@ export default function Home() {
     return () => clearTimeout(t);
   }, []);
 
-  // Parse filter from URL on mount
+  // Parse filters from URL.
   useEffect(() => {
     if (!router.isReady) return;
     const types = parseFilterParam(router.query.types as string | undefined);
     const statuses = parseStatusParam(router.query.statuses as string | undefined);
-    const focus = parseFocusParam(router.query.focus as string | undefined);
     setActiveFilters(types);
     setActiveRouteStatuses(statuses);
+  }, [router.isReady, router.query.types, router.query.statuses]);
+
+  // Parse route focus from URL only when the focus parameter changes. This keeps
+  // material/status filter changes from reopening a previously closed panel.
+  useEffect(() => {
+    if (!router.isReady) return;
+    const focus = parseFocusParam(router.query.focus as string | undefined);
     setRouteFocus(focus);
     setSelectedChokepoint(focus?.kind === "chokepoint"
       ? CHOKEPOINTS.find((cp) => cp.id === focus.id) ?? null
       : null);
-  }, [router.isReady, router.query.types, router.query.statuses, router.query.focus]);
+  }, [router.isReady, router.query.focus]);
 
   // Fetch disruption states
   useEffect(() => {
@@ -171,6 +178,8 @@ export default function Home() {
       }
     };
     fetchPrices();
+    const interval = setInterval(fetchPrices, 60 * 60 * 1000); // re-poll every hour (matches Yahoo Finance cache TTL)
+    return () => clearInterval(interval);
   }, []);
 
   // Fetch GDELT macro headlines for the feed
@@ -220,6 +229,8 @@ export default function Home() {
       }
     };
     fetchSignals();
+    const interval = setInterval(fetchSignals, 60 * 60 * 1000); // re-poll every hour (matches FRED cache TTL)
+    return () => clearInterval(interval);
   }, []);
 
   // Show state-change toasts on cache update
@@ -237,6 +248,7 @@ export default function Home() {
 
       const stateColors: Record<DisruptionState, string> = {
         clean: "#22c55e",
+        elevated: "#06b6d4",
         stressed: "#f59e0b",
         disrupted: "#ef4444",
         unknown: "#6b7280",
@@ -245,6 +257,7 @@ export default function Home() {
       let message = "";
       if (current === "disrupted") message = `${name} escalated to DISRUPTED`;
       else if (current === "stressed") message = `${name} now STRESSED`;
+      else if (current === "elevated") message = `${name} now has ELEVATED TRAFFIC`;
       else if (current === "clean") message = `${name} returned to clean`;
       else continue;
 
@@ -397,7 +410,9 @@ export default function Home() {
         <MacroPanel prices={commodityPrices} cache={cache} macroSignals={macroSignals} disasterEvents={disasterEvents} />
       )}
 
-      {/* Filter pills — fixed bottom-left */}
+      {globeReady && <MapLegend />}
+
+      {/* Commodity selector */}
       {globeReady && (
         <FilterPills activeFilters={activeFilters} onFilterChange={handleFilterChange} />
       )}
