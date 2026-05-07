@@ -50,9 +50,9 @@ export default function FilterPills({ activeFilters, onFilterChange }: FilterPil
 
   const handleKeyDown = (e: KeyboardEvent<HTMLButtonElement>, idx: number) => {
     let next = idx;
-    if (e.key === "ArrowRight") {
+    if (e.key === "ArrowDown" || e.key === "ArrowRight") {
       next = (idx + 1) % RESOURCE_TYPES.length;
-    } else if (e.key === "ArrowLeft") {
+    } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
       next = (idx - 1 + RESOURCE_TYPES.length) % RESOURCE_TYPES.length;
     } else if (e.key === "Escape") {
       setInfoOpen(null);
@@ -71,21 +71,40 @@ export default function FilterPills({ activeFilters, onFilterChange }: FilterPil
         aria-label="Filter by resource type"
         style={{
           position: "fixed",
-          bottom: compact ? "186px" : "204px",
+          top: compact ? "326px" : "500px",
+          bottom: compact ? "116px" : "104px",
           right: "16px",
           left: compact ? "16px" : "auto",
           display: "flex",
-          gap: "6px",
-          alignItems: "flex-end",
-          justifyContent: compact ? "flex-start" : "flex-end",
+          flexDirection: "column",
+          gap: "5px",
+          alignItems: "stretch",
+          justifyContent: "flex-start",
           zIndex: 50,
-          flexWrap: "wrap",
-          maxWidth: compact ? "calc(100vw - 32px)" : "360px",
-          maxHeight: compact ? "170px" : "none",
-          overflowY: compact ? "auto" : "visible",
-          paddingBottom: compact ? "2px" : 0,
+          width: compact ? "auto" : "190px",
+          maxWidth: compact ? "calc(100vw - 32px)" : "190px",
+          overflowY: "auto",
+          padding: "12px",
+          borderRadius: "8px",
+          border: "1px solid var(--color-border)",
+          background: "rgba(10, 15, 30, 0.92)",
+          backdropFilter: "blur(12px)",
+          boxShadow: "0 12px 30px rgba(0,0,0,0.22)",
         }}
       >
+        <div
+          style={{
+            fontFamily: "'IBM Plex Sans', sans-serif",
+            fontSize: "11px",
+            fontWeight: 600,
+            color: "var(--color-text)",
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            marginBottom: "3px",
+          }}
+        >
+          Commodities
+        </div>
         <button
           onClick={() => onFilterChange([...RESOURCE_TYPES])}
           aria-pressed={allSelected}
@@ -93,9 +112,11 @@ export default function FilterPills({ activeFilters, onFilterChange }: FilterPil
           style={{
             display: "flex",
             alignItems: "center",
+            justifyContent: "space-between",
+            width: "100%",
             minHeight: "36px",
-            padding: "6px 12px",
-            borderRadius: "18px",
+            padding: "6px 10px",
+            borderRadius: "6px",
             border: allSelected ? "1px solid rgba(255,255,255,0.28)" : "1px solid rgba(255,255,255,0.14)",
             background: allSelected ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.08)",
             color: allSelected ? "#ffffff" : "var(--color-text-muted)",
@@ -106,7 +127,16 @@ export default function FilterPills({ activeFilters, onFilterChange }: FilterPil
             transition: "background 150ms ease, border-color 150ms ease, color 150ms ease",
           }}
         >
-          All
+          <span>All</span>
+          <span
+            aria-hidden="true"
+            style={{
+              width: "7px",
+              height: "7px",
+              borderRadius: "50%",
+              background: allSelected ? "#ffffff" : "rgba(255,255,255,0.24)",
+            }}
+          />
         </button>
         {RESOURCE_TYPES.map((type, idx) => {
           const active = activeFilters.includes(type);
@@ -116,7 +146,7 @@ export default function FilterPills({ activeFilters, onFilterChange }: FilterPil
           return (
             <div
               key={type}
-              style={{ position: "relative", display: "inline-flex" }}
+              style={{ position: "relative", display: "flex", width: "100%" }}
               onMouseEnter={() => setHoveredType(type)}
               onMouseLeave={() => setHoveredType(null)}
             >
@@ -130,10 +160,11 @@ export default function FilterPills({ activeFilters, onFilterChange }: FilterPil
                 style={{
                   display: "flex",
                   alignItems: "center",
+                  width: "100%",
                   gap: "6px",
-                  padding: "6px 28px 6px 12px",
-                  minHeight: "36px",
-                  borderRadius: "18px",
+                  padding: "6px 30px 6px 10px",
+                  minHeight: "32px",
+                  borderRadius: "6px",
                   border: showingInfo
                     ? `1px solid rgba(255,255,255,0.4)`
                     : active
@@ -159,7 +190,7 @@ export default function FilterPills({ activeFilters, onFilterChange }: FilterPil
                     borderRadius: "50%",
                     background: `var(--color-${type})`,
                     flexShrink: 0,
-                    opacity: active ? 1 : 0,
+                    opacity: active ? 1 : 0.35,
                   }}
                 />
                 {RESOURCE_LABELS[type]}

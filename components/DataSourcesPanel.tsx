@@ -19,7 +19,7 @@ const INFO_SECTIONS = [
   {
     title: "Live Disruption Signals",
     body:
-      "Chokepoint status combines current news, nearby conflict events, disaster feeds, and observed maritime flow from IMF PortWatch where available. Clean means no strong current operational evidence; stressed means degraded or rerouted flow; disrupted means severe restriction, closure, or near-zero observed transit.",
+      "Chokepoint status combines current news, nearby conflict events, disaster feeds, and observed maritime flow from IMF PortWatch where available. Clean means no strong current operational evidence; elevated traffic means heavier diversion flow; stressed means degraded or rerouted flow; disrupted means severe restriction, closure, or near-zero observed transit.",
   },
   {
     title: "Events Feed",
@@ -86,8 +86,8 @@ export default function DataSourcesPanel({ health = {} }: DataSourcesPanelProps)
       <div
         style={{
           position: "fixed",
-          right: "16px",
-          left: "auto",
+          right: "auto",
+          left: "16px",
           top: compact ? "16px" : "auto",
           bottom: compact ? "auto" : "58px",
           zIndex: 54,
@@ -148,8 +148,8 @@ export default function DataSourcesPanel({ health = {} }: DataSourcesPanelProps)
           aria-label={panelMode === "info" ? "Application information" : "Data sources and caveats"}
           style={{
             position: "fixed",
-            right: "16px",
-            left: "auto",
+            right: "auto",
+            left: "16px",
             top: compact ? "58px" : "auto",
             bottom: compact ? "auto" : "100px",
             width: "min(380px, calc(100vw - 32px))",

@@ -8,6 +8,7 @@ interface RiskTimelineProps {
 
 const STATE_VALUE: Record<DisruptionState, number> = {
   clean: 0,
+  elevated: 0.6,
   unknown: 0.3,
   stressed: 1,
   disrupted: 2,

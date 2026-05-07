@@ -20,6 +20,7 @@ interface SnapshotProps {
 
 const STATE_DOT_COLORS: Record<DisruptionState, string> = {
   clean: "#22c55e",
+  elevated: "#06b6d4",
   stressed: "#f59e0b",
   disrupted: "#ef4444",
   unknown: "#6b7280",
@@ -27,6 +28,7 @@ const STATE_DOT_COLORS: Record<DisruptionState, string> = {
 
 const STATE_SYMBOLS: Record<DisruptionState, string> = {
   clean: "○",
+  elevated: "◐",
   stressed: "◑",
   disrupted: "●",
   unknown: "○",

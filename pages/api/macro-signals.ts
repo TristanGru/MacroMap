@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { fetchMacroSignals } from "@/lib/fred";
 import { fetchDroughtSignal } from "@/lib/drought";
 import { fetchCropConditionSignals } from "@/lib/usda";
+import { fetchEiaStorageSignals } from "@/lib/eia";
 import { kvGet, kvSet } from "@/lib/kv";
 import type { MacroSignal } from "@/lib/types";
 
@@ -27,16 +28,18 @@ export default async function handler(
       }
     }
 
-    // Fetch fresh — FRED (keyed) + drought monitor (keyless, always runs)
-    const [fredSignals, droughtSignal, cropSignals] = await Promise.all([
+    // Fetch fresh — FRED (keyed) + EIA storage (keyed) + keyless sources
+    const [fredSignals, droughtSignal, cropSignals, eiaStorageSignals] = await Promise.all([
       fetchMacroSignals(),
       fetchDroughtSignal(),
       fetchCropConditionSignals(),
+      fetchEiaStorageSignals(),
     ]);
     const signals: MacroSignal[] = [
       ...fredSignals,
       ...(droughtSignal ? [droughtSignal] : []),
       ...cropSignals,
+      ...eiaStorageSignals,
     ];
     await kvSet(CACHE_KEY, { signals, fetchedAt: new Date().toISOString() });
 

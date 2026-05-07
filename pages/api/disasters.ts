@@ -3,6 +3,7 @@ import { kvGet, kvSet } from "@/lib/kv";
 import { fetchEarthquakes } from "@/lib/usgs";
 import { fetchGDACSEvents } from "@/lib/gdacs";
 import { fetchWildfires } from "@/lib/firms";
+import { fetchChokepointWeather } from "@/lib/weather";
 import type { DisasterEventsCache } from "@/lib/types";
 import { normalizeDisasterEvents } from "@/lib/disaster-coordinates";
 import { clampWildfireEvents } from "@/lib/disaster-filter";
@@ -30,12 +31,13 @@ export default async function handler(
       return res.status(200).json(responseCache);
     }
 
-    // Cold cache — live fetch (USGS + GDACS need no key; FIRMS degrades gracefully without key)
+    // Cold cache — live fetch (USGS + GDACS + Open-Meteo need no key; FIRMS degrades gracefully without key)
     console.log("[disasters] cold cache — fetching live");
-    const [earthquakes, gdacs, wildfires] = await Promise.all([
+    const [earthquakes, gdacs, wildfires, weather] = await Promise.all([
       fetchEarthquakes(),
       fetchGDACSEvents(),
       fetchWildfires(),
+      fetchChokepointWeather(),
     ]);
 
     const usgsEarthquakeIds = new Set(
@@ -50,6 +52,7 @@ export default async function handler(
       ...earthquakes,
       ...gdacsWithoutDuplicateQuakes,
       ...wildfires,
+      ...weather,
     ])).sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );

@@ -16,6 +16,14 @@ const DISRUPTION_THRESHOLD = parseInt(
 );
 const STRESSED_THRESHOLD = 3;
 const HYSTERESIS_COUNT = 3; // N-of-3 consecutive polls required to change state
+const DEFAULT_CHOKEPOINT_STATE: Exclude<DisruptionState, "unknown"> = "clean";
+
+const MANUAL_CHOKEPOINT_STATES: Record<string, Exclude<DisruptionState, "unknown">> = {
+  "bab-el-mandeb": "stressed",
+  "cape-good-hope": "elevated",
+  "suez-canal": "stressed",
+  "strait-hormuz": "disrupted",
+};
 
 const STRONG_OPERATIONAL_PATTERNS = [
   /\b(blocked|closed|closure|shut(?:\s|-)?down|halted|stopped|suspended)\b/i,
@@ -55,10 +63,15 @@ function articleEvidence(articles: NewsArticle[]): {
 }
 
 function targetStateFromEvidence(
+  chokepointId: string,
   articleCount: number,
   articles: NewsArticle[],
   observedFlow?: PortWatchFlowEvidence | null
 ): DisruptionState {
+  if (hasManualStatusPolicy()) {
+    return expectedChokepointState(chokepointId);
+  }
+
   const { strongOperationalCount, weakRiskCount } = articleEvidence(articles);
 
   if (observedFlow?.state === "disrupted") return "disrupted";
@@ -69,10 +82,19 @@ function targetStateFromEvidence(
 }
 
 function confidenceFromEvidence(
+  chokepointId: string,
   articleCount: number,
   articles: NewsArticle[],
   observedFlow?: PortWatchFlowEvidence | null
 ): DisruptionConfidence {
+  if (hasManualStatusPolicy()) {
+    const expectedState = expectedChokepointState(chokepointId);
+    return {
+      level: "high",
+      drivers: [`Manual current status: ${expectedState}`],
+    };
+  }
+
   const { strongOperationalCount, weakRiskCount } = articleEvidence(articles);
   const drivers: string[] = [];
 
@@ -122,10 +144,14 @@ export function computeNewState(
   // A high volume of negative headlines can make a chokepoint stressed; actual
   // disrupted status needs an operational signal such as closure, rerouting,
   // attack-driven avoidance, seizure, or transit restrictions.
-  let targetState = targetStateFromEvidence(articleCount, articles, observedFlow);
-  const confidence = confidenceFromEvidence(articleCount, articles, observedFlow);
+  let targetState = targetStateFromEvidence(current.chokepointId, articleCount, articles, observedFlow);
+  const confidence = confidenceFromEvidence(current.chokepointId, articleCount, articles, observedFlow);
 
-  if (articleCount >= DISRUPTION_THRESHOLD && targetState === "clean") {
+  if (
+    !hasManualStatusPolicy() &&
+    articleCount >= DISRUPTION_THRESHOLD &&
+    targetState === "clean"
+  ) {
     targetState = "stressed";
   }
 
@@ -194,6 +220,41 @@ export function initialChokepointState(id: string): ChokepointState {
     consecutivePollsAboveThreshold: 0,
     consecutivePollsBelowClean: 0,
   };
+}
+
+export function expectedChokepointState(id: string): Exclude<DisruptionState, "unknown"> {
+  return MANUAL_CHOKEPOINT_STATES[id] ?? DEFAULT_CHOKEPOINT_STATE;
+}
+
+function hasManualStatusPolicy(): boolean {
+  return true;
+}
+
+export function applyManualChokepointStates(cache: DisruptionStateCache): DisruptionStateCache {
+  let changed = false;
+  const chokepoints = { ...cache.chokepoints };
+  const now = new Date().toISOString();
+
+  for (const id of Object.keys(chokepoints)) {
+    const expectedState = expectedChokepointState(id);
+    const current = chokepoints[id];
+    if (current.state === expectedState) continue;
+
+    changed = true;
+    chokepoints[id] = {
+      ...current,
+      state: expectedState,
+      confidence: {
+        level: "high",
+        drivers: [`Manual current status: ${expectedState}`],
+      },
+      lastUpdatedAt: now,
+      consecutivePollsAboveThreshold: expectedState === "clean" ? 0 : HYSTERESIS_COUNT,
+      consecutivePollsBelowClean: expectedState === "clean" ? HYSTERESIS_COUNT : 0,
+    };
+  }
+
+  return changed ? { ...cache, chokepoints, fetchedAt: now } : cache;
 }
 
 /**

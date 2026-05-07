@@ -64,6 +64,7 @@ function timeAgo(iso: string): string {
 
 const STATE_COLORS: Record<DisruptionState, string> = {
   clean: "#22c55e",
+  elevated: "#06b6d4",
   stressed: "#f59e0b",
   disrupted: "#ef4444",
   unknown: "#6b7280",

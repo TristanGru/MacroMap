@@ -26,6 +26,7 @@
 
   /* Disruption states */
   --color-clean: #22c55e;
+  --color-elevated: #06b6d4;
   --color-stressed: #f59e0b;
   --color-disrupted: #ef4444;
   --color-unknown: #6b7280;

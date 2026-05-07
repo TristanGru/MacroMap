@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import {
   computeNewState,
+  applyManualChokepointStates,
   initialChokepointState,
   isCacheStale,
   readCache,
@@ -107,6 +108,12 @@ export default async function handler(
         cache = hydratedCache;
         await kvSet(KV_KEYS.STATE, cache);
       }
+    }
+
+    const normalizedCache = applyManualChokepointStates(cache);
+    if (normalizedCache !== cache) {
+      cache = normalizedCache;
+      await kvSet(KV_KEYS.STATE, cache);
     }
 
     const snapshot = await getPortWatchSnapshot();

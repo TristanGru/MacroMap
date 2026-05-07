@@ -57,7 +57,7 @@ export default function RouteStatusPills({
       aria-label="Filter by route status"
       style={{
         position: "fixed",
-        bottom: compact ? "56px" : "104px",
+        bottom: compact ? "56px" : "58px",
         right: "16px",
         left: compact ? "16px" : "auto",
         display: "flex",

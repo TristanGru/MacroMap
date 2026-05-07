@@ -36,6 +36,7 @@ interface SidebarProps {
 
 const STATE_LABELS: Record<string, string> = {
   clean: "CLEAN",
+  elevated: "ELEVATED TRAFFIC",
   stressed: "STRESSED",
   disrupted: "DISRUPTED",
   unknown: "MONITORING",
